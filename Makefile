@@ -20,12 +20,12 @@ OBJ2 = $(patsubst %,$(ODIR)/%,$(_OBJ2))
 _OBJ3 = whoClient.o
 OBJ3 = $(patsubst %,$(ODIR)/%,$(_OBJ3))
 
-#_SRC = master.cpp worker.cpp
-#SRC = $(patsubst %,$(SRCDIR)/%,$(_SRC))
+_OBJ4 = whoServer.o
+OBJ4 = $(patsubst %,$(ODIR)/%,$(_OBJ4))
 
 
 
-all: $(BINDIR)/master $(BINDIR)/worker $(BINDIR)/whoClient 
+all: $(BINDIR)/master $(BINDIR)/worker $(BINDIR)/whoClient $(BINDIR)/whoServer 
 
 $(BINDIR)/master: $(OBJ1) $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS)
@@ -34,6 +34,9 @@ $(BINDIR)/worker: $(OBJ2) $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS)
 
 $(BINDIR)/whoClient: $(OBJ3) $(OBJ)
+	$(CC) -o $@ $^ $(CFLAGS)
+
+$(BINDIR)/whoServer: $(OBJ4) $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS)
 
 $(ODIR)/%.o: $(SRCDIR)/%.cpp $(DEPS)
