@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h> 
+#include <unistd.h>
 
 #include <iostream>
 #include <fstream>
@@ -12,7 +13,11 @@
 
 using namespace std;
 
-
+static int err;
+pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t ready  = PTHREAD_COND_INITIALIZER;
+static int gnumReady = 0;
+static int gnumThreads = 0;
 
 
 void getCommandLineArguements(int argc, 
@@ -34,7 +39,6 @@ int main(int argc, char *argv[])
 {   
     // For various uses
     string s;
-    int err;
     
     string queryFile;
     int numThreads;
@@ -43,6 +47,8 @@ int main(int argc, char *argv[])
     
     // Read command line arguements
     getCommandLineArguements(argc, argv, queryFile, numThreads, servPort, servIP);
+    
+    gnumThreads = numThreads;
     
     //cout << "queryFile: " << queryFile
       //  << "\nnumThreads: " << numThreads
@@ -83,7 +89,21 @@ int main(int argc, char *argv[])
     
     
     
+    // Destroy mutex
+    if (err = pthread_mutex_destroy(&mtx))
+        errExit("pthread_mutex_destroy");
+        
+        
+        
+    // Destroy condition variable
+    if (err = pthread_cond_destroy(&ready))
+        errExit("pthread_cond_destroy");
+    
+    
+    
     free(tids);
+    
+    
     
     return EXIT_SUCCESS;
 } 
@@ -114,18 +134,15 @@ void readAndAssign(ifstream &squeryFile,
         if (qcount > numThreads)
             continue;
         
-        // Create dynamically allocated query string
+        // Create dynamically allocated string for query
         query = (char *)malloc((s.length()+1)*sizeof(char));
         strcpy(query, s.c_str());
-        
-        cout << query << " <------> ";
-        
+                
         // Assign to thread
-        err = pthread_create(tids+qcount-1, NULL, thread_f, (void *)query);
-        if (err)
+        if (err = pthread_create(tids+qcount-1, NULL, thread_f, (void *)query))
             errExit("pthread_create");
             
-        cout << tids[qcount-1] << endl;
+        //cout << s << " <------> " << tids[qcount-1] << endl;
     }
 }
 
@@ -134,7 +151,55 @@ void readAndAssign(ifstream &squeryFile,
 void *thread_f(void *argp)
 {
     char *query = (char *)argp;
-    printf("Thread %ld got %s!\n", pthread_self(), query);;
+    
+    //int sleepTime = query[0] - '0';
+    //printf("Thread %ld got %s and gonna sleep for %d seconds!\n", pthread_self(), query, sleepTime);
+    //sleep(sleepTime);  
+    //cout << "\nThread " << pthread_self() << " woke up, " << flush;
+
+
+
+    //
+    // Wait for all threads to get ready
+    //
+    
+    // Lock mutex
+    if (err = pthread_mutex_lock(&mtx))
+        errExit("pthread_mutex_lock");
+        
+    //cout << "locked mutex, " << flush;
+    
+    // State that current thread is ready
+    gnumReady++;
+    
+    // If all ready, broadcast
+    if (gnumReady == gnumThreads)
+    {   
+        //cout << "broadcasts,";
+        if (err = pthread_cond_broadcast(&ready))
+            errExit("pthread_cond_broadcast");
+    
+    } 
+    
+    // If not all ready, wait on condition variable
+    else
+    {
+        //cout << "waits on condition variable, " << flush;
+        while (gnumReady != gnumThreads)
+            if (err = pthread_cond_wait(&ready, &mtx))
+                errExit("pthread_cond_wait");
+    }
+    
+    //cout << "wakes up from cond_wait, " << flush;
+    
+    // Unlock mutex
+    if (err = pthread_mutex_unlock(&mtx))
+        errExit("pthread_mutex_unlock");
+    
+    //cout << "unlocks mutex and starts doing stuff!" << endl;
+    
+    // Do stuff
+    
     free(query);
     pthread_exit(NULL);
 }
