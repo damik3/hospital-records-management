@@ -11,17 +11,13 @@ DEPS = $(shell find $(IDIR) -name *.h -o -name *.hpp)
 _OBJ = myDate.o patient.o ageGroup.o myLowLvlIO.o sendReceive.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
-_OBJ1 = master.o
-OBJ1 = $(patsubst %,$(ODIR)/%,$(_OBJ1))
+OBJ1 = $(ODIR)/master.o
 
-_OBJ2 = worker.o
-OBJ2 = $(patsubst %,$(ODIR)/%,$(_OBJ2))
+OBJ2 = $(ODIR)/worker.o
 
-_OBJ3 = whoClient.o
-OBJ3 = $(patsubst %,$(ODIR)/%,$(_OBJ3))
+OBJ3 = $(ODIR)/whoClient.o
 
-_OBJ4 = whoServer.o
-OBJ4 = $(patsubst %,$(ODIR)/%,$(_OBJ4))
+OBJ4 = $(ODIR)/whoServer.o
 
 
 

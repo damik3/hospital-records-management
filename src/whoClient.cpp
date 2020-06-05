@@ -25,7 +25,7 @@ void getCommandLineArguements(int argc,
     string &queryFile,
     int &numThreads,
     int &servPort,
-    string &servIP);
+    string &servIP); 
 
 void *thread_f(void *argp);
 
