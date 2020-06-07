@@ -7,132 +7,17 @@
 #include <fstream>
 #include <string>
 
-#define errExit(msg)    do { perror(msg); exit(EXIT_FAILURE); \
-                               } while (0)
+#include "errExit.h"
+#include "atomicque.h"
 
 
 using namespace std;
-
-static int err;
 
 //
 // Shared thread resources
 //
 
-// Pool for file descriptors
-struct fdPool
-{
-    int *fd;    // Array of fds
-    int size;   // Size of array
-    int count;  // Current fds in array
-    int start;  // Start of array
-    int end;    // End of array
-    pthread_mutex_t mtx;
-    pthread_mutex_t printmtx;
-    pthread_cond_t nonFull;
-    pthread_cond_t nonEmpty;
-    
-    fdPool(int poolSize)
-    {
-        fd = (int *)malloc(poolSize*sizeof(int));
-        if (fd == NULL)
-            errExit("malloc");
-            
-        size = poolSize;
-        count = 0;
-        start = 0;
-        end = 0;
-        pthread_mutex_init (&mtx, 0);
-        pthread_mutex_init (&printmtx, 0);
-        pthread_cond_init(&nonEmpty, 0);
-        pthread_cond_init(&nonFull, 0);
-    }
-    
-    ~fdPool()
-    {
-        free(fd);
-        pthread_mutex_destroy(&mtx);
-        pthread_mutex_destroy(&printmtx);
-        pthread_cond_destroy(&nonEmpty);
-        pthread_cond_destroy(&nonFull);
-    }
-    
-    // Non atomic
-    bool empty()
-    {
-        return count == 0;
-    }
-    
-    // Non atomic
-    bool full()
-    {
-        return count == size;
-    }
-    
-    // Atomic, waits on nonFull
-    void enq(const int& pfd)
-    {
-        // Lock mutex
-        if (err = pthread_mutex_lock(&mtx))
-            errExit("pthread_mutex_lock");
-        
-        // If full, wait
-        while (full())
-            if (err = pthread_cond_wait(&nonFull, &mtx))
-                errExit("pthread_cond_wait");
-                
-        // When not full, enqueue
-        fd[end] = pfd;
-        end = (end + 1) % size;
-        count++;
-        
-        // Signal
-        pthread_cond_signal(&nonEmpty);
-        
-        // Unlock mutex
-        if (err = pthread_mutex_unlock(&mtx))
-            errExit("pthread_mutex_unlock");
-    }
-    
-    // Atomic, waits on nonEmpty
-    int deq()
-    {
-        // Lock mutex
-        if (err = pthread_mutex_lock(&mtx))
-            errExit("pthread_mutex_lock");
-        
-        // If empty, wait
-        while (empty())
-            if (err = pthread_cond_wait(&nonEmpty, &mtx))
-                errExit("pthread_cond_wait");
-        
-        // When not empty, dequeue
-        int pfd = fd[start];
-        start = (start + 1) % size;
-        count--;
-        
-        // Signal
-        pthread_cond_signal(&nonFull);
-        
-        // Unlock mutex
-        if (err = pthread_mutex_unlock(&mtx))
-            errExit("pthread_mutex_unlock");
-        
-        return pfd; 
-    }
-    
-    // Non atomic
-    void print()
-    {
-        int curr = start;
-        int tmpcount = count;
-        while (tmpcount--)
-        {
-            cout << fd[curr] << endl;
-            curr = (curr + 1) % size;
-        }
-    }
-} *pool;
+atomicque<int> *pool;        // Pool for file descriptors
 
 
 
@@ -164,7 +49,7 @@ int main(int argc, char* argv[])
     
     
     // Create pool for fds
-    pool = new fdPool(bufferSize);
+    pool = new atomicque<int>(bufferSize);
     
     // Array for thread ids
     pthread_t *tids;
@@ -240,15 +125,16 @@ void *thread_f(void *argp){
     while ((fd = pool->deq()) != -1)
     {
         // Lock print mutex
-        if (err = pthread_mutex_lock(&(pool->printmtx)))
+        if (err = pthread_mutex_lock(&(pool->mtx)))
             errExit("pthread_mutex_lock");
             
         cout << tid << " dequeued " << fd << endl;
         
         // Unlock print mutex
-        if (err = pthread_mutex_unlock(&(pool->printmtx)))
+        if (err = pthread_mutex_unlock(&(pool->mtx)))
             errExit("pthread_mutex_unlock");
-    }   
+    }
+   
     pthread_exit(NULL);
 } 
 
