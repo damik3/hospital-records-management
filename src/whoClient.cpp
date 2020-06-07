@@ -7,13 +7,14 @@
 #include <fstream>
 #include <string>
 
-#define errExit(msg)    do { perror(msg); exit(EXIT_FAILURE); \
-                               } while (0)
+#include "errExit.h"
 
 
 using namespace std;
 
-static int err;
+//
+// Shared thread resources
+//
 pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t ready  = PTHREAD_COND_INITIALIZER;
 static int gnumReady = 0;
