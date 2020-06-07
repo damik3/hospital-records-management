@@ -85,19 +85,19 @@ int main(int argc, char *argv[])
     
     // Join threads
     for (int i = 0; i < (numThreads < qcount ? numThreads : qcount); i++)
-        if (err = pthread_join(tids[i], NULL))
+        if (pthread_join(tids[i], NULL))
             errExit("pthread_join");
     
     
     
     // Destroy mutex
-    if (err = pthread_mutex_destroy(&mtx))
+    if (pthread_mutex_destroy(&mtx))
         errExit("pthread_mutex_destroy");
         
         
         
     // Destroy condition variable
-    if (err = pthread_cond_destroy(&ready))
+    if (pthread_cond_destroy(&ready))
         errExit("pthread_cond_destroy");
     
     
@@ -140,7 +140,7 @@ void readAndAssign(ifstream &squeryFile,
         strcpy(query, s.c_str());
                 
         // Assign to thread
-        if (err = pthread_create(tids+qcount-1, NULL, thread_f, (void *)query))
+        if (pthread_create(tids+qcount-1, NULL, thread_f, (void *)query))
             errExit("pthread_create");
             
         //cout << s << " <------> " << tids[qcount-1] << endl;
@@ -165,7 +165,7 @@ void *thread_f(void *argp)
     //
     
     // Lock mutex
-    if (err = pthread_mutex_lock(&mtx))
+    if (pthread_mutex_lock(&mtx))
         errExit("pthread_mutex_lock");
         
     //cout << "locked mutex, " << flush;
@@ -177,7 +177,7 @@ void *thread_f(void *argp)
     if (gnumReady == gnumThreads)
     {   
         //cout << "broadcasts,";
-        if (err = pthread_cond_broadcast(&ready))
+        if (pthread_cond_broadcast(&ready))
             errExit("pthread_cond_broadcast");
     
     } 
@@ -187,14 +187,14 @@ void *thread_f(void *argp)
     {
         //cout << "waits on condition variable, " << flush;
         while (gnumReady != gnumThreads)
-            if (err = pthread_cond_wait(&ready, &mtx))
+            if (pthread_cond_wait(&ready, &mtx))
                 errExit("pthread_cond_wait");
     }
     
     //cout << "wakes up from cond_wait, " << flush;
     
     // Unlock mutex
-    if (err = pthread_mutex_unlock(&mtx))
+    if (pthread_mutex_unlock(&mtx))
         errExit("pthread_mutex_unlock");
     
     //cout << "unlocks mutex and starts doing stuff!" << endl;

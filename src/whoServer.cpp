@@ -56,27 +56,12 @@ int main(int argc, char* argv[])
     tids = (pthread_t *)malloc(numThreads*sizeof(pthread_t));
     if (tids == NULL)
         errExit("malloc");
-    
-    
 
-/*
-    for (int i=0; i<5; i++)
-        pool->enq(i);
-    pool->print();
-
-    for (int i=0; i<5; i++)
-        cout << "Dequeued " << pool->deq() << endl;
-    pool->print();
-        
-    for (int i=7; i<11; i++)
-        pool->enq(i);  
-    pool->print();
-*/
 
     
     // Create threads
     for (int i=0; i<numThreads; i++)
-        if (err = pthread_create(tids+i, NULL, thread_f, NULL))
+        if (pthread_create(tids+i, NULL, thread_f, NULL))
             errExit("pthread_create");
     
     
@@ -99,7 +84,7 @@ int main(int argc, char* argv[])
     
     // Join threads
     for (int i = 0; i < numThreads; i++)
-        if (err = pthread_join(tids[i], NULL))
+        if (pthread_join(tids[i], NULL))
             errExit("pthread_join");
     
 
@@ -125,13 +110,13 @@ void *thread_f(void *argp){
     while ((fd = pool->deq()) != -1)
     {
         // Lock print mutex
-        if (err = pthread_mutex_lock(&(pool->mtx)))
+        if (pthread_mutex_lock(&(pool->mtx)))
             errExit("pthread_mutex_lock");
             
         cout << tid << " dequeued " << fd << endl;
         
         // Unlock print mutex
-        if (err = pthread_mutex_unlock(&(pool->mtx)))
+        if (pthread_mutex_unlock(&(pool->mtx)))
             errExit("pthread_mutex_unlock");
     }
    

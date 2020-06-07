@@ -83,12 +83,12 @@ template <class T>
 void atomicque<T>::enq(const T& item)
 {
     // Lock mutex
-    if (err = pthread_mutex_lock(&mtx))
+    if (pthread_mutex_lock(&mtx))
         errExit("pthread_mutex_lock");
     
     // If full, wait
     while (full())
-        if (err = pthread_cond_wait(&nonFull, &mtx))
+        if (pthread_cond_wait(&nonFull, &mtx))
             errExit("pthread_cond_wait");
             
     // When not full, enqueue
@@ -100,7 +100,7 @@ void atomicque<T>::enq(const T& item)
     pthread_cond_signal(&nonEmpty);
     
     // Unlock mutex
-    if (err = pthread_mutex_unlock(&mtx))
+    if (pthread_mutex_unlock(&mtx))
         errExit("pthread_mutex_unlock");
 }
 
@@ -110,12 +110,12 @@ template <class T>
 T atomicque<T>::deq()
 {
     // Lock mutex
-    if (err = pthread_mutex_lock(&mtx))
+    if (pthread_mutex_lock(&mtx))
         errExit("pthread_mutex_lock");
     
     // If empty, wait
     while (empty())
-        if (err = pthread_cond_wait(&nonEmpty, &mtx))
+        if (pthread_cond_wait(&nonEmpty, &mtx))
             errExit("pthread_cond_wait");
     
     // When not empty, dequeue
@@ -127,7 +127,7 @@ T atomicque<T>::deq()
     pthread_cond_signal(&nonFull);
     
     // Unlock mutex
-    if (err = pthread_mutex_unlock(&mtx))
+    if (pthread_mutex_unlock(&mtx))
         errExit("pthread_mutex_unlock");
     
     return ret; 
