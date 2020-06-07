@@ -1,6 +1,9 @@
+#include <netinet/in.h>	     
+#include <netdb.h> 
+#include <pthread.h> 
 #include <stdio.h>
 #include <string.h>
-#include <pthread.h> 
+#include <sys/socket.h>	     
 #include <unistd.h>
 
 #include <iostream>
@@ -65,12 +68,46 @@ int main(int argc, char* argv[])
             errExit("pthread_create");
     
     
-    
+/*
     // Read fds from cin
     int input;
     while (cin >> input)
         pool->enq(input);
     pool->print();
+  */
+  
+
+    //
+    // Set up sockets
+    //
+    
+    int sock, newsock;
+    struct sockaddr_in server, client;
+    socklen_t clientlen;
+    struct hostent *rem;
+    
+    // Create socket for whoClient
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        errExit("socket");
+        
+    // Avoid TIME_WAIT after closing socket
+    int yes=1;
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1)
+        errExit("setsockopt");
+        
+    // Bind socket
+    server.sin_family = AF_INET;       
+    server.sin_addr.s_addr = htonl(INADDR_ANY);
+    server.sin_port = htons(queryPortNum);      
+    if (bind(sock, (struct sockaddr *)&server, sizeof(server)) < 0)
+        errExit("bind");
+        
+    // Listen
+    if (listen(sock, 5) < 0) 
+        errExit("listen");
+        
+    printf("Listening for connections to port %d\n", queryPortNum);
+    //
     
     
     
@@ -78,8 +115,7 @@ int main(int argc, char* argv[])
     int x=-1;
     for (int i=0; i<numThreads; i++)
         pool->enq(x);
-    //
-    
+        
     
     
     // Join threads
@@ -92,6 +128,7 @@ int main(int argc, char* argv[])
     cout << "About to exit, with pool looking like dis" << endl;
     pool->print();
     
+    close(sock);
     delete pool;
     free(tids);
     
