@@ -86,14 +86,6 @@ int main(int argc, char* argv[])
         if (pthread_create(tids+i, NULL, thread_f, NULL))
             errExit("pthread_create");
     
-    
-/*
-    // Read fds from cin
-    int input;
-    while (cin >> input)
-        pool->enq(input);
-    pool->print();
-  */
   
 
     //
