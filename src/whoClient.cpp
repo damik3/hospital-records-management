@@ -18,8 +18,8 @@ using namespace std;
 //
 // Shared thread resources
 //
-pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t ready  = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t ready  = PTHREAD_COND_INITIALIZER;
 static int gnumReady = 0;           // Number of threads ready to send (but still waiting)
 static int gnumThreads = 0;         // Total number of threads
 static struct sockaddr_in server;   // whoServer
