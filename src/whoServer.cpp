@@ -23,7 +23,12 @@ static int flgsigint = 0;
 // Shared thread resources
 //
 
-atomicque<int> *pool;        // Pool for file descriptors
+// Pool for file descriptors
+static atomicque<int> *pool;
+
+// Mutex for printing        
+static pthread_mutex_t print = PTHREAD_MUTEX_INITIALIZER;
+
 
 
 
@@ -161,10 +166,13 @@ int main(int argc, char* argv[])
         if (pthread_join(tids[i], NULL))
             errExit("pthread_join");
     
-
-        
-    cout << "About to exit, with pool looking like dis" << endl;
-    pool->print();
+    
+    
+    // Destroy mutex
+    if (pthread_mutex_destroy(&print))
+        errExit("pthread_mutex_destroy");
+    
+    
     
     close(sock);
     delete pool;
@@ -180,29 +188,39 @@ void *thread_f(void *argp){
     
     //cout << "Thread " << pthread_self() << endl;
     pthread_t tid = pthread_self();
+    
+    // Maximum query length = 128
     char buff[128];
     
     int fd;
+    
+    
+    
+    //
+    // Wait to get a file descriptor (-1 means exit)
+    //
     while ((fd = pool->deq()) != -1)
-    {
-        // Lock print mutex
-        if (pthread_mutex_lock(&(pool->mtx)))
-            errExit("pthread_mutex_lock");
-            
-        //cout << tid << " accepted connection with fd " << fd << endl;
-        
-        // Unlock print mutex
-        if (pthread_mutex_unlock(&(pool->mtx)))
-            errExit("pthread_mutex_unlock");
-            
-            
-            
+    {    
         // Read query
         if (read(fd, buff, 128) == -1)
             errExit("read");
+            
+        // Just to be safe
+        buff[128] = '\0'; 
+        
+        
+        
+        // Lock mutex
+        if (pthread_mutex_lock(&print))
+            errExit("pthread_mutex_lock");
+        
         cout << "Received " << buff << endl;
         
-        
+        // Unlock mutex
+        if (pthread_mutex_unlock(&print))
+            errExit("pthread_mutex_unlock");
+            
+            
         
         //
         // TODO: Process query
