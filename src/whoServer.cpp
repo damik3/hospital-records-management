@@ -1,6 +1,8 @@
+#include <errno.h>
 #include <netinet/in.h>	     
 #include <netdb.h> 
 #include <pthread.h> 
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>	     
@@ -13,8 +15,9 @@
 #include "errExit.h"
 #include "atomicque.h"
 
-
 using namespace std;
+
+static int flgsigint = 0;
 
 //
 // Shared thread resources
@@ -33,6 +36,8 @@ void getCommandLineArguements(int argc,
 
 void *thread_f(void *argp);
 
+void sigHandler(int signo);
+
 
 
 int main(int argc, char* argv[])
@@ -48,6 +53,15 @@ int main(int argc, char* argv[])
     //cout << "statsPortNum = " << statsPortNum << endl;
     //cout << "numThreads = " << numThreads << endl;
     //cout << "bufferSize = " << bufferSize << endl;
+    
+    
+    
+    // Set signal handler
+    static struct sigaction act;
+    sigfillset(&(act.sa_mask));
+    act.sa_handler = sigHandler;
+    sigaction(SIGINT, &act, NULL);
+    sigaction(SIGQUIT, &act, NULL);
     
     
     
@@ -81,8 +95,10 @@ int main(int argc, char* argv[])
     // Set up sockets
     //
     
-    int sock, newsock;
-    struct sockaddr_in server, client;
+    int sock;
+    int newsock;
+    struct sockaddr_in server;
+    struct sockaddr_in client;
     socklen_t clientlen;
     struct hostent *rem;
     
@@ -107,6 +123,26 @@ int main(int argc, char* argv[])
         errExit("listen");
         
     printf("Listening for connections to port %d\n", queryPortNum);
+    
+    
+    
+    //
+    // Enter server mode
+    //
+    while (1)
+    {
+        // Accept new connection
+        if ((newsock = accept(sock, (struct sockaddr *)&client, &clientlen)) < 0) 
+            if (errno != EINTR)
+                errExit("accept");
+        
+        // Exit on SIGINT
+        if (flgsigint)
+            break;
+            
+        // Place fd in pool
+        pool->enq(newsock);
+    }
     //
     
     
@@ -150,7 +186,9 @@ void *thread_f(void *argp){
         if (pthread_mutex_lock(&(pool->mtx)))
             errExit("pthread_mutex_lock");
             
-        cout << tid << " dequeued " << fd << endl;
+        cout << tid << " accepted connection with fd " << fd << endl;
+        
+        close(fd);
         
         // Unlock print mutex
         if (pthread_mutex_unlock(&(pool->mtx)))
@@ -159,6 +197,15 @@ void *thread_f(void *argp){
    
     pthread_exit(NULL);
 } 
+
+
+
+
+void sigHandler(int signo)
+{
+    if ((signo == SIGINT) || (signo == SIGQUIT))
+        flgsigint = 1;
+}
 
 
 

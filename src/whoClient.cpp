@@ -1,6 +1,10 @@
+#include <arpa/inet.h>
+#include <netinet/in.h>	     
+#include <netdb.h>
+#include <pthread.h> 
 #include <stdio.h>
 #include <string.h>
-#include <pthread.h> 
+#include <sys/socket.h>	     
 #include <unistd.h>
 
 #include <iostream>
@@ -9,7 +13,6 @@
 
 #include "errExit.h"
 
-
 using namespace std;
 
 //
@@ -17,8 +20,10 @@ using namespace std;
 //
 pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t ready  = PTHREAD_COND_INITIALIZER;
-static int gnumReady = 0;
-static int gnumThreads = 0;
+static int gnumReady = 0;           // Number of threads ready to send (but still waiting)
+static int gnumThreads = 0;         // Total number of threads
+static struct sockaddr_in server;   // whoServer
+
 
 
 void getCommandLineArguements(int argc, 
@@ -49,13 +54,32 @@ int main(int argc, char *argv[])
     // Read command line arguements
     getCommandLineArguements(argc, argv, queryFile, numThreads, servPort, servIP);
     
-    gnumThreads = numThreads;
     
     //cout << "queryFile: " << queryFile
       //  << "\nnumThreads: " << numThreads
       //  << "\nservPort: " << servPort
       //  << "\nservIP: " << servIP 
       //  << endl;
+    
+    gnumThreads = numThreads;
+
+
+
+    // IPV dot-number into  binary form (network byte order
+    struct in_addr addr;
+    inet_aton(servIP.c_str(), &addr);
+    
+    // Get host
+    struct hostent* host;  
+    host = gethostbyaddr((const char*)&addr, sizeof(addr), AF_INET);
+    if (host == NULL)
+        errExit("gethostbyaddr");
+    printf("servIP:%s Resolved to: %s\n", servIP.c_str(),host->h_name);
+    
+    // Get server     
+    server.sin_family = AF_INET;
+    memcpy(&server.sin_addr, host->h_addr, host->h_length);
+    server.sin_port = htons(servPort); 
     
     
     
@@ -199,8 +223,22 @@ void *thread_f(void *argp)
     
     //cout << "unlocks mutex and starts doing stuff!" << endl;
     
+    cout << "Thread " << pthread_self() << " reached here!" << endl;
+    
+    
+    
+    int sock;
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        errExit("socket");
+        
+    if (connect(sock, (struct sockaddr*)&server, sizeof(server)) < 0)
+        errExit("connect");
+    printf("Connected successfully!");
     // Do stuff
     
+    
+    
+    close(sock);
     free(query);
     pthread_exit(NULL);
 }
