@@ -100,7 +100,9 @@ int main(int argc, char* argv[])
     struct sockaddr_in server;
     struct sockaddr_in client;
     socklen_t clientlen;
-    struct hostent *rem;
+    
+    // Valgrind grumbles without this
+    memset(&clientlen, 0, sizeof(socklen_t));
     
     // Create socket for whoClient
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -122,7 +124,7 @@ int main(int argc, char* argv[])
     if (listen(sock, 5) < 0) 
         errExit("listen");
         
-    printf("Listening for connections to port %d\n", queryPortNum);
+    printf("Listening for connections on port %d\n", queryPortNum);
     
     
     
@@ -178,6 +180,7 @@ void *thread_f(void *argp){
     
     //cout << "Thread " << pthread_self() << endl;
     pthread_t tid = pthread_self();
+    char buff[128];
     
     int fd;
     while ((fd = pool->deq()) != -1)
@@ -186,13 +189,33 @@ void *thread_f(void *argp){
         if (pthread_mutex_lock(&(pool->mtx)))
             errExit("pthread_mutex_lock");
             
-        cout << tid << " accepted connection with fd " << fd << endl;
-        
-        close(fd);
+        //cout << tid << " accepted connection with fd " << fd << endl;
         
         // Unlock print mutex
         if (pthread_mutex_unlock(&(pool->mtx)))
             errExit("pthread_mutex_unlock");
+            
+            
+            
+        // Read query
+        if (read(fd, buff, 128) == -1)
+            errExit("read");
+        cout << "Received " << buff << endl;
+        
+        
+        
+        //
+        // TODO: Process query
+        //
+        
+        
+        
+        // Send answer back
+        strcpy(buff, "okay");
+        if (write(fd, buff, (strlen(buff)+1)*sizeof(char)) == -1)
+            errExit("write");
+            
+        close(fd);
     }
    
     pthread_exit(NULL);

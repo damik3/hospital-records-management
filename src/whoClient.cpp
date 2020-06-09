@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
     host = gethostbyaddr((const char*)&addr, sizeof(addr), AF_INET);
     if (host == NULL)
         errExit("gethostbyaddr");
-    printf("servIP:%s Resolved to: %s\n", servIP.c_str(),host->h_name);
+    //printf("servIP:%s Resolved to: %s\n", servIP.c_str(),host->h_name);
     
     // Get server     
     server.sin_family = AF_INET;
@@ -176,11 +176,6 @@ void readAndAssign(ifstream &squeryFile,
 void *thread_f(void *argp)
 {
     char *query = (char *)argp;
-    
-    //int sleepTime = query[0] - '0';
-    //printf("Thread %ld got %s and gonna sleep for %d seconds!\n", pthread_self(), query, sleepTime);
-    //sleep(sleepTime);  
-    //cout << "\nThread " << pthread_self() << " woke up, " << flush;
 
 
 
@@ -222,22 +217,55 @@ void *thread_f(void *argp)
         errExit("pthread_mutex_unlock");
     
     //cout << "unlocks mutex and starts doing stuff!" << endl;
-    
-    cout << "Thread " << pthread_self() << " reached here!" << endl;
-    
+        
     
     
+    //
+    // Communicate with server
+    //
+    
+    // Create socket for conncection with server
     int sock;
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         errExit("socket");
         
+    // Connect to server
     if (connect(sock, (struct sockaddr*)&server, sizeof(server)) < 0)
         errExit("connect");
-    printf("Connected successfully!");
-    // Do stuff
+    //printf("Connected successfully!\n");
+    
+    // Send query to server
+    if (write(sock, query, (strlen(query)+1)*sizeof(char)) == -1)
+        errExit("write");
+        
+    // Read answer from server (max answer length = 128)
+    char buff[128];
+    if (read(sock, buff, 128) == -1)
+        errExit("read");
+        
+    // Just to be safe
+    buff[128] = '\0';   
+        
+        
+    
+    //
+    // Print answer
+    //
+    
+    // Lock mutex
+    if (pthread_mutex_lock(&mtx))
+        errExit("pthread_mutex_lock");
+    
+    cout << query << endl;
+    cout << buff << endl;
+    
+    // Unlock mutex
+    if (pthread_mutex_unlock(&mtx))
+        errExit("pthread_mutex_unlock");
     
     
     
+    // Exit
     close(sock);
     free(query);
     pthread_exit(NULL);
