@@ -12,8 +12,9 @@
 #include <fstream>
 #include <string>
 
-#include "errExit.h"
 #include "atomicque.h"
+#include "errExit.h"
+#include "myLowLvlIO.h"
 
 using namespace std;
 
@@ -69,24 +70,6 @@ int main(int argc, char* argv[])
     sigaction(SIGQUIT, &act, NULL);
     
     
-    
-    // Create pool for fds
-    pool = new atomicque<int>(bufferSize);
-    
-    // Array for thread ids
-    pthread_t *tids;
-    tids = (pthread_t *)malloc(numThreads*sizeof(pthread_t));
-    if (tids == NULL)
-        errExit("malloc");
-
-
-    
-    // Create threads
-    for (int i=0; i<numThreads; i++)
-        if (pthread_create(tids+i, NULL, thread_f, NULL))
-            errExit("pthread_create");
-    
-  
 
     //
     // Set up sockets
@@ -122,6 +105,38 @@ int main(int argc, char* argv[])
         errExit("listen");
         
     printf("Listening for connections on port %d\n", queryPortNum);
+    
+    // Read numWorkers from master
+    if ((newsock = accept(sock, (struct sockaddr *)&client, &clientlen)) < 0) 
+        errExit("accept");
+        
+    int numWorkers;
+    if (read_data(newsock, (char *)&numWorkers, sizeof(int), sizeof(int)) < 0)
+        errExit("read_data");
+        
+    cout << "numWorkers = " << numWorkers << endl;
+    
+    
+    
+    //
+    // Create threads
+    //
+    
+    // Create pool for fds
+    pool = new atomicque<int>(bufferSize);
+    
+    // Array for thread ids
+    pthread_t *tids;
+    tids = (pthread_t *)malloc(numThreads*sizeof(pthread_t));
+    if (tids == NULL)
+        errExit("malloc");
+
+
+    
+    // Create threads
+    for (int i=0; i<numThreads; i++)
+        if (pthread_create(tids+i, NULL, thread_f, NULL))
+            errExit("pthread_create");
     
     
     
