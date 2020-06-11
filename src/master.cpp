@@ -1,32 +1,35 @@
+#include <arpa/inet.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <netinet/in.h>	     
+#include <netdb.h>
 #include <poll.h>
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <signal.h>
-#include <sys/types.h>
+#include <sys/socket.h>	 
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <iostream>
 #include <fstream>
 #include <string>
 
-#include "myDate.h"
-#include "patient.h"
 #include "ageGroup.h"
-#include "mySTL/myList.h"
+#include "errExit.h"
+#include "patient.h"
+#include "myDate.h"
+#include "myPairs.h" 
 #include "mySTL/myAVLTree.h"
 #include "mySTL/myHashTable.h"
+#include "mySTL/myList.h"
 #include "sendReceive.h"
-#include "myPairs.h" 
 
 #define WORKERPATH  "./bin/worker"
 #define PIPEDIR     ".pipes"
-
-extern int errno;
 
 static int dflgsigint = 0;
 static int dflgsigusr1 = 0;
@@ -37,7 +40,9 @@ void getCommandLineArguements(int argc,
     char *argv[], 
     unsigned int *numWorkers, 
     unsigned int* bufferSize, 
-    char *inputDir);
+    char *inputDir, 
+    int &servPort,
+    string &servIP);
 
 void readAndAssign(char *inputDir, 
     unsigned int &bufferSize,
@@ -75,24 +80,68 @@ int main (int argc, char *argv[])
     // Read command line arguements 
     unsigned int numWorkers;
     unsigned int bufferSize;
+    int servPort;
+    string servIP;
     char inputDir[128];
-    getCommandLineArguements(argc, argv, &numWorkers, &bufferSize, inputDir);
+    getCommandLineArguements(argc, argv, &numWorkers, &bufferSize, inputDir, servPort, servIP);
+    
+    cout << "numWorkers = " << numWorkers << endl;
+    cout << "bufferSize = " << bufferSize<< endl;
+    cout << "servPort = " << servPort << endl;
+    cout << "servIP = " << servIP << endl;
+    cout << "inputDir = " << inputDir << endl;
     
     
     
-    // Create directory for fifos 
-    int pipeDir = mkdir(PIPEDIR, 0777);
+    //
+    // Send number of workers to whoServer
+    //
     
-    if (pipeDir == -1)
-    {
-        perror("mkdir");
-        exit(1);
-    }
+    // IP dot-number into binary form (network byte order)
+    struct in_addr addr;
+    inet_aton(servIP.c_str(), &addr);
+    
+    // Get host
+    struct hostent* host;  
+    host = gethostbyaddr((const char*)&addr, sizeof(addr), AF_INET);
+    if (host == NULL)
+        errExit("gethostbyaddr");
+    //printf("servIP:%s Resolved to: %s\n", servIP.c_str(),host->h_name);
+    
+    // Get server     
+    struct sockaddr_in server;
+    server.sin_family = AF_INET;
+    memcpy(&server.sin_addr, host->h_addr, host->h_length);
+    server.sin_port = htons(servPort); 
+    
+    // Create socket for conncection with server
+    int sock;
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        errExit("socket");
+        
+    // Connect to server
+    if (connect(sock, (struct sockaddr*)&server, sizeof(server)) < 0)
+        errExit("connect");
+    printf("Connected successfully!\n");
+    
+    // Send the numWorkers variable
+    if (write_data(sock, (char *)&numWorkers, sizeof(int), bufferSize) < 0)
+        errExit("write_data");
+    
+    
+    
+    return 0; 
+    
+
+
+/************************************************************************************************
+ ************************************************************************************************
+ ************************************************************************************************/
 
 
 
     //
-    // Data structures used by diseaseAggregator
+    // Data structures used by master
     //
     
     int numCountries = 0;
@@ -111,19 +160,31 @@ int main (int argc, char *argv[])
     
     // Slot i contains fd for sending data to i-th worker
     int toworkerPipe[numWorkers];
-        
+    
+    
     // 2d associative array (rows are diseases, columns are countries).
     // [d][c] element is a tree sorted by myDate containing ageGroups.
     // 1 struct for patients(records) that entered and 1 for those that exited
     myHashTable<string, myHashTable<string, myAVLTree<indexPair<myDate, ageGroup > > > > rec_enter;
     myHashTable<string, myHashTable<string, myAVLTree<indexPair<myDate, ageGroup > > > > rec_exit;
-        
+ 
     // Number of succesfull queries
     unsigned int qsucc = 0;
     
     // Number of failed queries
     unsigned int qfail = 0;
+ 
     
+    
+    // Create directory for fifos 
+    int pipeDir = mkdir(PIPEDIR, 0777);
+    
+    if (pipeDir == -1)
+    {
+        perror("mkdir");
+        exit(1);
+    }
+   
     
     
     // Read and assign inputDir to workers
@@ -138,7 +199,7 @@ int main (int argc, char *argv[])
     sigaction(SIGINT, &act, NULL);
     sigaction(SIGQUIT, &act, NULL);
     sigaction(SIGUSR1, &act, NULL);
-    
+  
     
     
     // Receive data from all workers
@@ -230,14 +291,14 @@ int main (int argc, char *argv[])
                             if (ret == sizeof(char))
                                 break;
                               
-                            /*
-                            cout << "\ndiseaseAggregator received " 
-                                << country << endl
-                                << disease << endl
-                                << d << endl
-                                << s << endl
-                                << group;
-                             */
+                            
+                            //cout << "\ndiseaseAggregator received " 
+                              //  << country << endl
+                              //  << disease << endl
+                              //  << d << endl
+                              //  << s << endl
+                              //  << group;
+                             
                              
                             // Insert data into data struct
                             
@@ -549,24 +610,34 @@ int main (int argc, char *argv[])
 
 
 
-void getCommandLineArguements(int argc, char *argv[], unsigned int *numWorkers, unsigned int* bufferSize, char *inputDir)
+void getCommandLineArguements(int argc, 
+    char *argv[], 
+    unsigned int *numWorkers, 
+    unsigned int* bufferSize, 
+    char *inputDir, 
+    int &servPort,
+    string &servIP)
 {
-    string usage("Usage: diseaseAggregator –w numWorkers -b bufferSize -i input_dir");
+    string usage("Usage: master –w numWorkers -b bufferSize –s serverIP  –p serverPort -i input_dir");
     
-    if (argc != 7)
+    if (argc != 11)
     {
         cerr << usage << endl;
         exit(1);
     }
     
-    string w("-w"), b("-b"), i("-i");
+    string w("-w"), b("-b"), s("-s"), p("-p"), i("-i");
     
-    for (int j=1; j<7; j++)
+    for (int j=1; j<11; j++)
     {
         if (w.compare(argv[j]) == 0)
             *numWorkers = atoi(argv[++j]);
         else if (b.compare(argv[j]) == 0)
             *bufferSize = atoi(argv[++j]);
+        else if (s.compare(argv[j]) == 0)
+            servIP = argv[++j];
+        else if (p.compare(argv[j]) == 0)
+            servPort = atoi(argv[++j]);
         else if (i.compare(argv[j]) == 0)
             strcpy(inputDir, argv[++j]);
         else
@@ -721,7 +792,7 @@ void readAndAssign(char *inputDir,
             
             if ((workerPipe[i] = open(s.c_str(), O_RDWR)) == -1)
             {
-                perror("diseaseAggregator: open worker pipe");
+                perror("master: open worker pipe");
                 exit(1);
             }
             
@@ -737,7 +808,7 @@ void readAndAssign(char *inputDir,
             
             if ((toworkerPipe[i] = open(s.c_str(), O_RDWR)) == -1)
             {
-                perror("diseaseAggregator: open worker pipe");
+                perror("master: open worker pipe");
                 exit(1);
             }
         }
@@ -751,7 +822,7 @@ void sigHandler(int signo)
 {
     if ( (signo == SIGINT) || (signo == SIGQUIT) )
         dflgsigint = 1;
-    else if (signo == SIGUSR1);
+    else if (signo == SIGUSR1)
         dflgsigusr1 = 1;
 }
 
@@ -868,7 +939,7 @@ void receiveFromWorkers(myHashTable<string, myHashTable<string, myAVLTree<indexP
                     else if (s == "EX")
                         rec_exit[disease][country].insert(ipair);
                     else
-                        cerr << "diseaseAggregator: something unexpected happened!" << endl;
+                        cerr << "master: something unexpected happened!" << endl;
                 }
             }
         }
