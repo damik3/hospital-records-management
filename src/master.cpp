@@ -11,7 +11,8 @@
 #include <stdlib.h>
 #include <sys/socket.h>	 
 #include <sys/stat.h>
-#include <sys/types.h>
+#include <sys/types.h> 
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include <iostream>
@@ -44,16 +45,11 @@ void getCommandLineArguements(int argc,
     int &servPort,
     string &servIP);
 
-void readAndAssign(char *inputDir, 
+void readAndAssign(unsigned int &numWorkers, 
     unsigned int &bufferSize,
-    unsigned int &numWorkers, 
-    int &numCountries, 
-    myList<string> &countries, 
-    pid_t workerPid[], 
-    myList<string> workerCountries[],
-    int workerPipe[],
-    int toworkerPipe[]);
-
+    char *inputDir, 
+    string servIP,
+    int &servPort);
 void sigHandler(int signo);
 
 void printLog(myList<string> &countries, 
@@ -85,11 +81,11 @@ int main (int argc, char *argv[])
     char inputDir[128];
     getCommandLineArguements(argc, argv, &numWorkers, &bufferSize, inputDir, servPort, servIP);
     
-    cout << "numWorkers = " << numWorkers << endl;
-    cout << "bufferSize = " << bufferSize<< endl;
-    cout << "servPort = " << servPort << endl;
-    cout << "servIP = " << servIP << endl;
-    cout << "inputDir = " << inputDir << endl;
+    //cout << "numWorkers = " << numWorkers << endl;
+    //cout << "bufferSize = " << bufferSize<< endl;
+    //cout << "servPort = " << servPort << endl;
+    //cout << "servIP = " << servIP << endl;
+    //cout << "inputDir = " << inputDir << endl;
     
     
     
@@ -122,11 +118,27 @@ int main (int argc, char *argv[])
     // Connect to server
     if (connect(sock, (struct sockaddr*)&server, sizeof(server)) < 0)
         errExit("connect");
-    printf("Connected successfully!\n");
+    //printf("Connected successfully!\n");
     
     // Send the numWorkers variable
     if (write_data(sock, (char *)&numWorkers, sizeof(int), bufferSize) < 0)
         errExit("write_data");
+        
+    close(sock);
+    
+    
+    
+    
+    // Read and assign inputDir to workers
+    readAndAssign(numWorkers, bufferSize, inputDir, servIP, servPort);
+    
+    
+    
+    // Wait for all workers to finish
+    int status;
+    while (wait(&status) > 0)
+        ;;
+    cout << "master: All children finished" << endl;
     
     
     
@@ -142,18 +154,18 @@ int main (int argc, char *argv[])
 
     //
     // Data structures used by master
-    //
+    // 
     
     int numCountries = 0;
     
     // List of all countries 
-    myList<string> countries; 
-    
-    // Slot i contains pid of worker i 
-    pid_t workerPid[numWorkers];
+    myList<string> countries;
     
     // Slot i contains a list of countries assigned to worker i 
     myList<string> workerCountries[numWorkers];
+    
+    // Slot i contains pid of i-th worker
+    int workerPid[numWorkers];
     
     // Slot i contains fd for reading data from i-th worker 
     int workerPipe[numWorkers];
@@ -184,11 +196,6 @@ int main (int argc, char *argv[])
         perror("mkdir");
         exit(1);
     }
-   
-    
-    
-    // Read and assign inputDir to workers
-    readAndAssign(inputDir, bufferSize, numWorkers, numCountries, countries, workerPid, workerCountries, workerPipe, toworkerPipe);
     
 
         
@@ -651,21 +658,15 @@ void getCommandLineArguements(int argc,
 
 
 
-void readAndAssign(char *inputDir, 
+void readAndAssign(unsigned int &numWorkers, 
     unsigned int &bufferSize,
-    unsigned int &numWorkers, 
-    int &numCountries, 
-    myList<string> &countries,  
-    pid_t workerPid[], 
-    myList<string> workerCountries[],
-    int workerPipe[],
-    int toworkerPipe[])
+    char *inputDir, 
+    string servIP,
+    int &servPort)
 {
     
     // Open inputDir 
-    
     DIR *inputDirPtr;
-    
     if ( (inputDirPtr = opendir(inputDir)) == NULL)
     {
         perror("opendir");
@@ -673,9 +674,12 @@ void readAndAssign(char *inputDir,
     }
     
 
-    
+    //
     // Read inputDir
+    //
     
+    int numCountries = 0;
+    myList<string> workerCountries[numWorkers];
     struct dirent *direntP;
     string s;
     
@@ -688,35 +692,30 @@ void readAndAssign(char *inputDir,
         // Assign country to worker 
         workerCountries[numCountries % numWorkers].insert(s = direntP->d_name);
         
-        // Save country in country list
-        countries.insert(s);
-        
         numCountries++;
     }
     
     
     
     // Close inputDir
-    
     closedir(inputDirPtr);
     
     
-    
+    //
     // Fork workers 
-    
-    pid_t ppid = getpid();
+    //
     
     myList<string>::iterator itWorkerCountries;
     
     for (int i=0; i<numWorkers; i++)
     {
         
-        workerPid[i] = fork();
+        int workerPid = fork();
         
         
         
         // Case: fork failed
-        if (workerPid[i] < 0)
+        if (workerPid < 0)
         {
             perror("fork");
             exit(1);
@@ -725,35 +724,39 @@ void readAndAssign(char *inputDir,
           
           
         // Case: forked child
-        else if (workerPid[i] == 0)
+        else if (workerPid == 0)
         { 
             // Build argv of i-th worker 
             
             int n = workerCountries[i].getCount();
             
             // Array of n + 5 char pointers 
-            char **cmd = (char **)malloc((n + 5) * sizeof(char *));
+            char **cmd = (char **)malloc((n + 6) * sizeof(char *));
             
             cmd[0] = (char *)malloc( (strlen(WORKERPATH) + 1) * sizeof(char) );
             strcpy(cmd[0], WORKERPATH);
             
-            // Supose 16 digits is enough for a process id
-            cmd[1] = (char *)malloc( 16 * sizeof(char) );
-            sprintf(cmd[1], "%15d", ppid);
+            // inputDir
+            cmd[1] = (char *)malloc ( (strlen(inputDir) + 1) * sizeof(char));
+            strcpy(cmd[1], inputDir);
             
-            cmd[2] = (char *)malloc ( (strlen(inputDir) + 1) * sizeof(char));
-            strcpy(cmd[2], inputDir);
+            // bufferSize (suppose 63 digits is enough for bufferSize)
+            cmd[2] = (char *)malloc ( 64 * sizeof(char));
+            sprintf(cmd[2], "%63d", bufferSize);
             
-            // Suppose 63 digits is enough for bufferSize
-            cmd[3] = (char *)malloc ( 64 * sizeof(char));
-            sprintf(cmd[3], "%63d", bufferSize);
+            // servIP
+            cmd[3] = (char *)malloc( (servIP.length() + 1) *sizeof(char) );
+            strcpy(cmd[3], servIP.c_str());
             
+            // servPort (suppose 32 digits is enough for servPort)
+            cmd[4] = (char *)malloc( 64 *sizeof(char) );
+            sprintf(cmd[4], "%63d", servPort);
             
             // For each country 
             
             itWorkerCountries = workerCountries[i].begin();
             
-            for (int j=3; j<n+3; j++)
+            for (int j=4; j<n+4; j++)
             {
                 cmd[j+1] = (char *)malloc((itWorkerCountries->length() + 1) * sizeof(char));
                 strcpy(cmd[j+1], itWorkerCountries->c_str());
@@ -761,7 +764,7 @@ void readAndAssign(char *inputDir,
             }
             
             
-            cmd[n+4] = NULL;
+            cmd[n+5] = NULL;
             
             execv(cmd[0], cmd);
             
@@ -777,41 +780,7 @@ void readAndAssign(char *inputDir,
         
         // Case: father process
         else 
-        {
-            // Create and open pipe for current worker
-        
-            s = PIPEDIR;
-            s += "/pipe";
-            s += to_string(workerPid[i]);
-            
-            if (mkfifo(s.c_str(), 0666) == -1 )
-            {
-                perror("mkfifo");
-                exit(1);
-            }
-            
-            if ((workerPipe[i] = open(s.c_str(), O_RDWR)) == -1)
-            {
-                perror("master: open worker pipe");
-                exit(1);
-            }
-            
-            s = PIPEDIR;
-            s += "/2pipe";
-            s += to_string((workerPid[i]));
-            
-            if (mkfifo(s.c_str(), 0666) == -1 )
-            {
-                perror("mkfifo");
-                exit(1);
-            }
-            
-            if ((toworkerPipe[i] = open(s.c_str(), O_RDWR)) == -1)
-            {
-                perror("master: open worker pipe");
-                exit(1);
-            }
-        }
+            ;;
     }
 }
 

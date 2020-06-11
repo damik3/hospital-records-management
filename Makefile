@@ -4,7 +4,7 @@ SRCDIR=./src
 BINDIR=./bin
 
 CC=g++
-CFLAGS= -std=c++0x -lpthread -I $(IDIR)
+CFLAGS= -std=c++0x -lpthread -I $(IDIR) -Wall
 
 DEPS = $(shell find $(IDIR) -name *.h -o -name *.hpp)
 
