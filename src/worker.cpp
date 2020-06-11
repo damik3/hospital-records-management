@@ -36,7 +36,13 @@ using namespace std;
 
 
 
-void getCommandLineArguements(int argc, char *argv[], pid_t &parentpid, string &inputDir, unsigned int &bufferSize, myList<string>& countries);
+void getCommandLineArguements(int argc, 
+    char *argv[], 
+    string &inputDir, 
+    unsigned int &bufferSize, 
+    string &servIP,
+    int &servPort,
+    myList<string>& countries);
 
 void updateData(string inputDir, 
     unsigned int bufferSize, 
@@ -62,20 +68,30 @@ int main (int argc, char *argv[])
     
     // Read command line args 
     
-    pid_t parentpid;
     string inputDir;    
     unsigned int bufferSize;
+    string servIP;
+    int servPort;
     myList<string> countries;   
     
-    getCommandLineArguements(argc, argv, parentpid, inputDir, bufferSize, countries);
-/*    
-    cout << "\nWorker " << getpid() 
-        << " with parent " << parentpid
-        << " has to check directory " << inputDir 
-        << " with buffer size " << bufferSize 
-        << " for: " << endl << countries;
- */   
+    getCommandLineArguements(argc, argv, inputDir, bufferSize, servIP, servPort, countries);
+  
+    cout << "inputDir = " << inputDir << endl;
+    cout << "bufferSize = " << bufferSize << endl;
+    cout << "servIP = " << servIP << endl;
+    cout << "servPort = " << servPort << endl;
+    cout << "countries = " << countries << endl;
+
+    return 0;
     
+/************************************************************************************************
+ ************************************************************************************************
+ ************************************************************************************************/
+
+    
+    pid_t parentpid;
+
+
     
     // Set signal handler
     
@@ -200,23 +216,30 @@ int main (int argc, char *argv[])
 
 
 
-void getCommandLineArguements(int argc, char *argv[], pid_t &parentpid, string &inputDir, unsigned int &bufferSize, myList<string>& countries)
+void getCommandLineArguements(int argc, 
+    char *argv[], 
+    string &inputDir, 
+    unsigned int &bufferSize, 
+    string &servIP,
+    int &servPort,
+    myList<string>& countries)
 {
-    string usage("Usage: worker inputDir bufferSize country1 country2 country3 ... ");
+    string usage("Usage: worker inputDir bufferSize servIP servPort country1 country2 country3 ... ");
     
-    if (argc < 4)
+    if (argc < 5)
     {
         cerr << usage << endl;
         exit(1);
     }
-        
-    parentpid = atoi(argv[1]);
-    inputDir = argv[2];
-    bufferSize = atoi(argv[3]);
+    
+    inputDir = argv[1];
+    bufferSize = atoi(argv[2]);
+    servIP = argv[3];
+    servPort = atoi(argv[4]);
     
     string s;
     
-    for (int i=4; i<argc; i++)
+    for (int i=5; i<argc; i++)
         countries.insert(s = argv[i]);
 }
 
