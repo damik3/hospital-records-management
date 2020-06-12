@@ -1,6 +1,10 @@
+#include <arpa/inet.h>
+#include <netinet/in.h>	     
+#include <netdb.h>
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
+#include <sys/socket.h>	 
 #include <sys/types.h>      
 #include <sys/stat.h>
 #include <unistd.h>        
@@ -11,12 +15,13 @@
 #include <fstream>
 #include <string>
 
-#include "myDate.h"
-#include "patient.h"
 #include "ageGroup.h"
-#include "mySTL/myList.h"
+#include "errExit.h"
+#include "myDate.h"
 #include "mySTL/myAVLTree.h"
 #include "mySTL/myHashTable.h"
+#include "mySTL/myList.h"
+#include "patient.h"
 #include "sendReceive.h"
 
 #define PIPEDIR     ".pipes"
@@ -83,6 +88,55 @@ int main (int argc, char *argv[])
     cout << "countries = " << countries << endl;
     
     
+    //
+    // Connect to whoServer
+    //
+    
+    // IP dot-number into binary form (network byte order)
+    struct in_addr addr;
+    inet_aton(servIP.c_str(), &addr);
+    
+    // Get host
+    struct hostent* host;  
+    host = gethostbyaddr((const char*)&addr, sizeof(addr), AF_INET);
+    if (host == NULL)
+        errExit("gethostbyaddr");
+    //printf("servIP:%s Resolved to: %s\n", servIP.c_str(),host->h_name);
+    
+    // Get server     
+    struct sockaddr_in server;
+    server.sin_family = AF_INET;
+    memcpy(&server.sin_addr, host->h_addr, host->h_length);
+    server.sin_port = htons(servPort); 
+    
+    // Create socket for conncection with server
+    int sock;
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        errExit("socket");
+        
+    // Connect to server
+    if (connect(sock, (struct sockaddr*)&server, sizeof(server)) < 0)
+        errExit("connect");
+    //printf("Connected successfully!\n");
+    
+    
+    
+    // Associative array of countries and set of dates checked so far for each country 
+    myHashTable<string, myAVLTree<myDate> > countryDates;
+    
+    // Set of all patients this worker manages, indexed by id
+    myAVLTree<patient> patients;
+    
+    // Read country dirs and update worker's and whoServer's data
+    updateData(inputDir, bufferSize, countries, countryDates, patients, sock);
+
+    cout << "\nWorker " << getpid() 
+        << " in total checked " << endl << countryDates
+        << "and logged " << endl << patients;
+    
+    
+    
+    close(sock);
      
     return 0; 
     
@@ -128,29 +182,13 @@ int main (int argc, char *argv[])
     while ((fromfdpipe = open(s.c_str(), O_RDWR)) == -1)
         ;;
             
-            
-    
-    // Associative array of countries and set of dates checked so far for each country 
-    myHashTable<string, myAVLTree<myDate> > countryDates;
-    
-    // Set of all patients this worker manages, indexed by id
-    myAVLTree<patient> patients;
+
     
     // Number of succesfull queries
     unsigned int qsucc = 0;
     
     // Number of failed queries
     unsigned int qfail = 0;
-    
-    
-    
-    // Initialize data
-    
-    updateData(inputDir, bufferSize, countries, countryDates, patients, fdpipe);
-    
-    //cout << "\nWorker " << getpid() 
-      //  << " in total checked " << endl << countryDates
-      //  << "and logged " << endl << patients;
     
 
 
