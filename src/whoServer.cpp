@@ -13,14 +13,19 @@
 #include <fstream>
 #include <string>
 
+#include "ageGroup.h"
 #include "atomicque.h"
 #include "errExit.h"
+#include "sendReceive.h"
 #include "myLowLvlIO.h"
+#include "mySTL/myHashTable.h"
+#include "mySTL/myAVLTree.h"
 #include "myPairs.h"
 
 using namespace std;
 
 static int flgsigint = 0;
+static int bufferSize = 128;
 
 //
 // Shared thread resources
@@ -35,8 +40,17 @@ static pthread_mutex_t print = PTHREAD_MUTEX_INITIALIZER;
 // Number of workers
 static int numWorkers;
 
-// Number of workeres done sending summary statistics
-static int workersDone;
+// Sockets for communication with workers
+static int* workerSock;
+static int iworkerSock = 0;
+static pthread_mutex_t mtxworkerSock = PTHREAD_MUTEX_INITIALIZER;
+
+// 2d associative array (rows are diseases, columns are countries).
+// [d][c] element is a tree sorted by myDate containing ageGroups.
+// 1 struct for patients(records) that entered and 1 for those that exited
+static myHashTable<string, myHashTable<string, myAVLTree<indexPair<myDate, ageGroup > > > > rec_enter;
+static myHashTable<string, myHashTable<string, myAVLTree<indexPair<myDate, ageGroup > > > > rec_exit;
+static pthread_mutex_t recmtx = PTHREAD_MUTEX_INITIALIZER;
 
 
 
@@ -139,7 +153,11 @@ int main(int argc, char* argv[])
     if (read_data(newsock, (char *)&numWorkers, sizeof(int), sizeof(int)) < 0)
         errExit("read_data");
         
-    cout << "numWorkers = " << numWorkers << endl;
+    //cout << "numWorkers = " << numWorkers << endl;
+    
+    workerSock = (int *)malloc(numWorkers*sizeof(int));
+    for (int i=0; i<numWorkers; i++)
+        workerSock[i] = -1;
     
     
     
@@ -217,7 +235,7 @@ int main(int argc, char* argv[])
         
         
         
-        // If connection came in querySock
+        // If connection came in statsSock
         else if ((pfds[1].revents != 0) && (pfds[1].revents & POLLIN))
         {
             // Accept new connection
@@ -253,10 +271,15 @@ int main(int argc, char* argv[])
     
     
     
-    // Destroy mutex
+    // Destroy mutexes
     if (pthread_mutex_destroy(&print))
         errExit("pthread_mutex_destroy");
     
+    if (pthread_mutex_destroy(&recmtx))
+        errExit("pthread_mutex_destroy");
+    
+    if (pthread_mutex_destroy(&mtxworkerSock))
+        errExit("pthread_mutex_destroy");
     
     
     cout << "Exiting with pool lookin like dis" << endl;
@@ -265,6 +288,7 @@ int main(int argc, char* argv[])
     close(querySock);
     close(statsSock);
     delete pool;
+    free(workerSock);
     free(tids);
     
     return EXIT_SUCCESS;
@@ -328,15 +352,85 @@ void *thread_f(void *argp){
             strcpy(buff, "okay");
             if (write(p.first, buff, (strlen(buff)+1)*sizeof(char)) == -1)
                 errExit("write");
-                 
+                
+            close(p.first);
         }
         
+        // If read from statsPort
         else if (p.second == 's')
         {
             
+            int ret;
+            string s;
+            string country;
+            string disease;
+            myDate d;
+            ageGroup group;
+            indexPair<myDate, ageGroup> ipair;
+            
+            // Read all statistics sent from worker
+            do {
+                
+                ret = receive_data(p.first, bufferSize, d, s, group, country, disease);
+                
+                if (ret == -1)
+                    errExit("receive_data");
+                    
+                else if (ret == sizeof(char))
+                    break;
+                    
+                else
+                {
+                    //cout << "\nwhoServer received " 
+                      //      << country << endl
+                      //      << disease << endl
+                      //      << d << endl
+                      //      << s << endl
+                      //      << group;
+                            
+                    ipair.first = d;
+                    ipair.second = group;
+                    
+                    // Lock mutex
+                    if (pthread_mutex_lock(&recmtx))
+                        errExit("pthread_mutex_lock");
+                    
+                    if (s == "EN")
+                        rec_enter[disease][country].insert(ipair);
+                    else if (s == "EX")
+                        rec_exit[disease][country].insert(ipair);
+                    else
+                        cerr << "master: something unexpected happened!" << endl;
+                        
+                    // Unlock mutex
+                    if (pthread_mutex_unlock(&recmtx))
+                        errExit("pthread_mutex_unlock");
+                } 
+                
+            } while (1);
+            
+            
+            
+            //
+            // Save socket for communication with worker
+            //
+            
+            // Lock mutex
+            if (pthread_mutex_lock(&mtxworkerSock))
+                errExit("pthread_mutex_lock");
+            
+            workerSock[iworkerSock] = p.first;
+            iworkerSock++;
+            
+            cout << "\nworkerSock: " << endl;
+            for (int i=0; i<numWorkers; i++)
+                cout << workerSock[i] << endl;
+            cout << endl;
+            
+            // Unlock mutex
+            if (pthread_mutex_unlock(&mtxworkerSock))
+                errExit("pthread_mutex_unlock");
         }
-        
-        close(p.first);
     }
    
     pthread_exit(NULL);
