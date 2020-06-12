@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <netinet/in.h>	     
 #include <netdb.h> 
+#include <poll.h>
 #include <pthread.h> 
 #include <signal.h>
 #include <stdio.h>
@@ -15,6 +16,7 @@
 #include "atomicque.h"
 #include "errExit.h"
 #include "myLowLvlIO.h"
+#include "myPairs.h"
 
 using namespace std;
 
@@ -25,10 +27,16 @@ static int flgsigint = 0;
 //
 
 // Pool for file descriptors
-static atomicque<int> *pool;
+static atomicque<pair<int, char> > *pool;
 
 // Mutex for printing        
 static pthread_mutex_t print = PTHREAD_MUTEX_INITIALIZER;
+
+// Number of workers
+static int numWorkers;
+
+// Number of workeres done sending summary statistics
+static int workersDone;
 
 
 
@@ -75,42 +83,59 @@ int main(int argc, char* argv[])
     // Set up sockets
     //
     
-    int sock;
-    int newsock;
+    int querySock;
+    int statsSock;
     struct sockaddr_in server;
-    struct sockaddr_in client;
-    socklen_t clientlen;
-    
-    // Valgrind grumbles without this
-    memset(&clientlen, 0, sizeof(socklen_t));
     
     // Create socket for whoClient
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    if ((querySock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         errExit("socket");
         
-    // Avoid TIME_WAIT after closing socket
+    // Create socket for workers
+    if ((statsSock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        errExit("socket");
+        
+    // Avoid TIME_WAIT after closing querySock
     int yes=1;
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1)
+    if (setsockopt(querySock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1)
         errExit("setsockopt");
         
-    // Bind socket
+    // Avoid TIME_WAIT after closing statsSock
+    if (setsockopt(statsSock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1)
+        errExit("setsockopt");
+        
+    // Bind querySock
     server.sin_family = AF_INET;       
     server.sin_addr.s_addr = htonl(INADDR_ANY);
     server.sin_port = htons(queryPortNum);      
-    if (bind(sock, (struct sockaddr *)&server, sizeof(server)) < 0)
+    if (bind(querySock, (struct sockaddr *)&server, sizeof(server)) < 0)
         errExit("bind");
         
+    // Bind statsSock
+    server.sin_port = htons(statsPortNum);  
+    if (bind(statsSock, (struct sockaddr *)&server, sizeof(server)) < 0)
+        errExit("bind");
+     
     // Listen
-    if (listen(sock, 5) < 0) 
+    if (listen(querySock, 5) < 0) 
         errExit("listen");
         
-    printf("Listening for connections on port %d\n", queryPortNum);
+    if (listen(statsSock, 5) < 0) 
+        errExit("listen");
+        
+    printf("Listening for connections on ports %d and %d\n", queryPortNum, statsPortNum);
     
+    
+    
+    //
     // Read numWorkers from master
-    if ((newsock = accept(sock, (struct sockaddr *)&client, &clientlen)) < 0) 
+    //
+    
+    int newsock;
+    
+    if ((newsock = accept(statsSock, NULL, NULL)) < 0) 
         errExit("accept");
         
-    int numWorkers;
     if (read_data(newsock, (char *)&numWorkers, sizeof(int), sizeof(int)) < 0)
         errExit("read_data");
         
@@ -119,11 +144,30 @@ int main(int argc, char* argv[])
     
     
     //
+    // Create poll struct
+    //
+    
+    struct pollfd *pfds;
+    pfds = (struct pollfd *)calloc(2, sizeof(struct pollfd));
+    if (pfds == NULL)
+    {
+        perror("malloc");
+        return EXIT_FAILURE;
+    }
+    
+    pfds[0].fd = querySock;
+    pfds[0].events = POLLIN;
+    pfds[1].fd = statsSock;
+    pfds[1].events = POLLIN;
+    
+    
+    
+    //
     // Create threads
     //
     
     // Create pool for fds
-    pool = new atomicque<int>(bufferSize);
+    pool = new atomicque<pair<int, char> >(bufferSize);
     
     // Array for thread ids
     pthread_t *tids;
@@ -143,28 +187,62 @@ int main(int argc, char* argv[])
     //
     // Enter server mode
     //
+    pair<int, char> p;
+    
     while (1)
     {
-        // Accept new connection
-        if ((newsock = accept(sock, (struct sockaddr *)&client, &clientlen)) < 0) 
+        // Wait for new connection to arrive
+        if (poll(pfds, 2, -1) == -1)
             if (errno != EINTR)
-                errExit("accept");
-        
+                errExit("poll");
+            
         // Exit on SIGINT
         if (flgsigint)
             break;
+        
+        
+        
+        // If connection came in querySock
+        if ((pfds[0].revents != 0) && (pfds[0].revents & POLLIN))
+        {
+            // Accept new connection
+            if ((newsock = accept(querySock, NULL, NULL)) < 0) 
+                if (errno != EINTR)
+                    errExit("accept");
+                    
+            p.first = newsock;
+            p.second = 'q';
+            pool->enq(p);
+        }
+        
+        
+        
+        // If connection came in querySock
+        else if ((pfds[1].revents != 0) && (pfds[1].revents & POLLIN))
+        {
+            // Accept new connection
+            if ((newsock = accept(statsSock, NULL, NULL)) < 0) 
+                if (errno != EINTR)
+                    errExit("accept");
             
-        // Place fd in pool
-        pool->enq(newsock);
+            p.first = newsock;
+            p.second = 's';
+            pool->enq(p);
+        }
+        
+        
+        
+        // Not supposed to happen
+        else
+            errExit("whoServer: something unexpected happened!");
     }
-    //
     
     
     
     // Signal it's over
-    int x=-1;
+    p.first = -1;
     for (int i=0; i<numThreads; i++)
-        pool->enq(x);
+        pool->enq(p);
         
     
     
@@ -181,7 +259,11 @@ int main(int argc, char* argv[])
     
     
     
-    close(sock);
+    cout << "Exiting with pool lookin like dis" << endl;
+    pool->print();
+    
+    close(querySock);
+    close(statsSock);
     delete pool;
     free(tids);
     
@@ -194,53 +276,67 @@ int main(int argc, char* argv[])
 void *thread_f(void *argp){
     
     //cout << "Thread " << pthread_self() << endl;
-    pthread_t tid = pthread_self();
+    //pthread_t tid = pthread_self();
     
     // Maximum query length = 128
     char buff[128];
     
-    int fd;
+    pair<int, char> p;
     
     
     
     //
     // Wait to get a file descriptor (-1 means exit)
     //
-    while ((fd = pool->deq()) != -1)
+    
+    while ((p = pool->deq()).first != -1)
     {    
-        // Read query
-        if (read(fd, buff, 128) == -1)
-            errExit("read");
-            
-        // Just to be safe
-        buff[128] = '\0'; 
+        cout << "Just deq'd " << p << endl;
         
         
-        
-        // Lock mutex
-        if (pthread_mutex_lock(&print))
-            errExit("pthread_mutex_lock");
-        
-        cout << "Received " << buff << endl;
-        
-        // Unlock mutex
-        if (pthread_mutex_unlock(&print))
-            errExit("pthread_mutex_unlock");
+        // If read from queryPort
+        if (p.second == 'q'){
+
+            // Read query
+            if (read(p.first, buff, 128) == -1)
+                errExit("read");
+                
+            // Just to be safe
+            buff[128] = '\0'; 
             
             
-        
-        //
-        // TODO: Process query
-        //
-        
-        
-        
-        // Send answer back
-        strcpy(buff, "okay");
-        if (write(fd, buff, (strlen(buff)+1)*sizeof(char)) == -1)
-            errExit("write");
             
-        close(fd);
+            // Lock mutex
+            if (pthread_mutex_lock(&print))
+                errExit("pthread_mutex_lock");
+            
+            cout << "Received " << buff << endl;
+            
+            // Unlock mutex
+            if (pthread_mutex_unlock(&print))
+                errExit("pthread_mutex_unlock");
+                
+                
+            
+            //
+            // TODO: Process query
+            //
+            
+            
+            
+            // Send answer back
+            strcpy(buff, "okay");
+            if (write(p.first, buff, (strlen(buff)+1)*sizeof(char)) == -1)
+                errExit("write");
+                 
+        }
+        
+        else if (p.second == 's')
+        {
+            
+        }
+        
+        close(p.first);
     }
    
     pthread_exit(NULL);
