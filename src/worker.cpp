@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
-#include <sys/types.h>      // getpid
+#include <sys/types.h>      
 #include <sys/stat.h>
-#include <unistd.h>         // getpid
+#include <unistd.h>        
 #include <fcntl.h>
 #include <dirent.h>
 
@@ -81,8 +81,10 @@ int main (int argc, char *argv[])
     cout << "servIP = " << servIP << endl;
     cout << "servPort = " << servPort << endl;
     cout << "countries = " << countries << endl;
-
-    return 0;
+    
+    
+     
+    return 0; 
     
 /************************************************************************************************
  ************************************************************************************************
