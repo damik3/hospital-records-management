@@ -66,6 +66,8 @@ void *thread_f(void *argp);
 
 void sigHandler(int signo);
 
+string procQuery(const char *q);
+
 
 
 int main(int argc, char* argv[])
@@ -257,6 +259,11 @@ int main(int argc, char* argv[])
     
     
     
+    //cout << "/n/n***rec_enter***" << endl << rec_enter << endl;
+    //cout << "/n/n***rec_exit***" << endl << rec_exit << endl;
+    
+    
+    
     // Signal it's over
     p.first = -1;
     for (int i=0; i<numThreads; i++)
@@ -282,8 +289,8 @@ int main(int argc, char* argv[])
         errExit("pthread_mutex_destroy");
     
     
-    cout << "Exiting with pool lookin like dis" << endl;
-    pool->print();
+    //cout << "Exiting with pool lookin like dis" << endl;
+    //pool->print();
     
     close(querySock);
     close(statsSock);
@@ -292,6 +299,23 @@ int main(int argc, char* argv[])
     free(tids);
     
     return EXIT_SUCCESS;
+}
+
+
+
+
+string procQuery(const char *q)
+{
+    
+    string s(q);
+    stringstream sline(s);
+    
+    string command;
+    sline >> command;
+    
+    string result;
+    result = "okay";
+    return result;
 }
 
 
@@ -315,42 +339,43 @@ void *thread_f(void *argp){
     
     while ((p = pool->deq()).first != -1)
     {    
-        cout << "Just deq'd " << p << endl;
+        //cout << "Just deq'd " << p << endl;
         
         
         // If read from queryPort
         if (p.second == 'q'){
 
             // Read query
-            if (read(p.first, buff, 128) == -1)
+            if (read_data(p.first, buff, 128, bufferSize) == -1)
                 errExit("read");
                 
             // Just to be safe
-            buff[128] = '\0'; 
+            buff[127] = '\0'; 
+            
+            string result = procQuery(buff);
             
             
+            
+            //
+            // Print answer
+            //
             
             // Lock mutex
             if (pthread_mutex_lock(&print))
                 errExit("pthread_mutex_lock");
             
-            cout << "Received " << buff << endl;
+            cout << buff << endl << result << endl;;
             
             // Unlock mutex
             if (pthread_mutex_unlock(&print))
                 errExit("pthread_mutex_unlock");
-                
-                
-            
-            //
-            // TODO: Process query
-            //
-            
+               
             
             
             // Send answer back
-            strcpy(buff, "okay");
-            if (write(p.first, buff, (strlen(buff)+1)*sizeof(char)) == -1)
+            strcpy(buff, result.c_str());
+            buff[127] = '\0';
+            if (write_data(p.first, buff, (strlen(buff)+1)*sizeof(char), bufferSize) == -1)
                 errExit("write");
                 
             close(p.first);
@@ -373,12 +398,15 @@ void *thread_f(void *argp){
                 
                 ret = receive_data(p.first, bufferSize, d, s, group, country, disease);
                 
+                // In case of error
                 if (ret == -1)
                     errExit("receive_data");
                     
+                // In case worker is done
                 else if (ret == sizeof(char))
                     break;
-                    
+                  
+                // In case worker sent data
                 else
                 {
                     //cout << "\nwhoServer received " 
@@ -395,12 +423,13 @@ void *thread_f(void *argp){
                     if (pthread_mutex_lock(&recmtx))
                         errExit("pthread_mutex_lock");
                     
+                    // Insert into appropriate data structure
                     if (s == "EN")
                         rec_enter[disease][country].insert(ipair);
                     else if (s == "EX")
                         rec_exit[disease][country].insert(ipair);
                     else
-                        cerr << "master: something unexpected happened!" << endl;
+                        cerr << "whoServer: something unexpected happened!" << endl;
                         
                     // Unlock mutex
                     if (pthread_mutex_unlock(&recmtx))
@@ -422,10 +451,10 @@ void *thread_f(void *argp){
             workerSock[iworkerSock] = p.first;
             iworkerSock++;
             
-            cout << "\nworkerSock: " << endl;
-            for (int i=0; i<numWorkers; i++)
-                cout << workerSock[i] << endl;
-            cout << endl;
+            //cout << "\nworkerSock: " << endl;
+            //for (int i=0; i<numWorkers; i++)
+            //    cout << workerSock[i] << endl;
+            //cout << endl;
             
             // Unlock mutex
             if (pthread_mutex_unlock(&mtxworkerSock))
