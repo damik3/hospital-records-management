@@ -81,11 +81,11 @@ int main (int argc, char *argv[])
     
     getCommandLineArguements(argc, argv, inputDir, bufferSize, servIP, servPort, countries);
   
-    cout << "inputDir = " << inputDir << endl;
-    cout << "bufferSize = " << bufferSize << endl;
-    cout << "servIP = " << servIP << endl;
-    cout << "servPort = " << servPort << endl;
-    cout << "countries = " << countries << endl;
+    //cout << "inputDir = " << inputDir << endl;
+    //cout << "bufferSize = " << bufferSize << endl;
+    //cout << "servIP = " << servIP << endl;
+    //cout << "servPort = " << servPort << endl;
+    //cout << "countries = " << countries << endl;
     
     
     //
@@ -130,9 +130,9 @@ int main (int argc, char *argv[])
     // Read country dirs and update worker's and whoServer's data
     updateData(inputDir, bufferSize, countries, countryDates, patients, sock);
 
-    cout << "\nWorker " << getpid() 
-        << " in total checked " << endl << countryDates
-        << "and logged " << endl << patients;
+    //cout << "\nWorker " << getpid() 
+      //  << " in total checked " << endl << countryDates
+      //  << "and logged " << endl << patients;
     
     
     
@@ -319,7 +319,7 @@ void updateData(string inputDir,
     string enter;
     
     // For debugging purposes;
-    int dbg = 0;
+    //int dbg = 0;
     
     
     // For each country assigned
