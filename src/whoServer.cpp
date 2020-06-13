@@ -45,6 +45,9 @@ static int* workerSock;
 static int iworkerSock = 0;
 static pthread_mutex_t mtxworkerSock = PTHREAD_MUTEX_INITIALIZER;
 
+// Set for countries
+myAVLTree<string> countries;
+
 // 2d associative array (rows are diseases, columns are countries).
 // [d][c] element is a tree sorted by myDate containing ageGroups.
 // 1 struct for patients(records) that entered and 1 for those that exited
@@ -306,30 +309,234 @@ int main(int argc, char* argv[])
 
 string procQuery(const char *q)
 {
+    string result = "okay\n";
     
     string s(q);
-    stringstream sline(s);
+    stringstream ss(s);
     
     string command;
-    sline >> command;
+    ss >> command;
     
-    string result;
-    result = "okay";
+    
+    
+    if (command == "/diseaseFrequency")
+    {
+        string disease, country;
+        myDate d1, d2;
+        
+        ss >> disease >> d1 >> d2;
+        
+        string line;
+        getline(ss, line);
+        
+        // If the country arguement exists, read it 
+        if (!line.empty()) 
+        {
+            stringstream sline;
+            sline.str(line);
+            sline >> country;
+        }
+                    
+        int count;
+        
+        if (country.empty())
+        {
+            count = 0;
+            myHashTable<string, myAVLTree<indexPair<myDate, ageGroup > > >::iterator it1;
+            myAVLTree<indexPair<myDate, ageGroup > >::iterator it2;
+            
+            for (it1 = rec_enter[disease].begin(); it1.isValid(); ++it1)
+                for (it2 = it1->second.begin(); it2.isValid(); ++it2)
+                    if ((d1 < it2->first) && (it2->first < d2))
+                        count += it2->second.getTotal();
+                        
+            result = to_string(count);
+            result += "\n";
+        }
+        
+        else
+        {
+            count = 0;
+            myAVLTree<indexPair<myDate, ageGroup > >::iterator it;
+            
+            if (countries.exists(country))
+                for (it = rec_enter[disease][country].begin(); it.isValid(); ++it)
+                    if ((d1 < it->first) && (it->first < d2))
+                        count += it->second.getTotal();
+                        
+            result = to_string(count);
+            result += "\n";
+        }
+    
+    }   // End if (command == "/diseaseFrequency")
+    
+    
+    
+    else if (command == "/topk-AgeRanges")
+    {
+        int k;
+        string country;
+        string disease;
+        myDate d1;
+        myDate d2;
+        
+        ss >> k >> country >> disease >> d1 >> d2;
+        
+        ageGroup g;
+        myAVLTree<indexPair<myDate, ageGroup > >::iterator it;
+    
+        if (countries.exists(country))
+            for (it = rec_enter[disease][country].begin(); it.isValid(); ++it)
+                    if ((d1 < it->first) && (it->first < d2))
+                        g = g + it->second;
+             
+        stringstream ssout;
+        g.printTopk(ssout, k);
+        result = ssout.str();
+    
+    }   // End else if (command == "/topk-AgeRanges")
+    
+    
+    
+    else if (command == "/searchPatientRecord")
+    {
+        
+    }   // End if (command == "/searchPatientRecord")
+    
+    
+    
+    else if (command == "/numPatientAdmissions")
+    {
+        string disease, country;
+        myDate d1, d2;
+        
+        ss >> disease >> d1 >> d2;
+        
+        string line;
+        getline(ss, line);
+        
+        // If the country arguement exists, read it 
+        if (!line.empty()) 
+        {
+            stringstream sline;
+            sline.str(line);
+            sline >> country;
+        }
+             
+
+   
+        int count;
+        
+        if (country.empty())
+        { 
+            myAVLTree<string>::iterator itCountries;
+            myAVLTree<indexPair<myDate, ageGroup > >::iterator it;
+            
+            for (itCountries = countries.begin(); itCountries.isValid(); ++itCountries)
+            {
+                count = 0;
+                
+                for (it = rec_enter[disease][*itCountries].begin(); it.isValid(); ++it)
+                    if ((d1 < it->first) && (it->first < d2))
+                        count += it->second.getTotal();
+                        
+                result = *itCountries;
+                result += " ";
+                result += to_string(count);
+                result += "\n";
+            }
+        }
+        
+        else
+        {
+            count = 0;
+            myAVLTree<indexPair<myDate, ageGroup > >::iterator it;
+            
+            if (countries.exists(country))
+                for (it = rec_enter[disease][country].begin(); it.isValid(); ++it)
+                    if ((d1 < it->first) && (it->first < d2))
+                        count += it->second.getTotal();
+            
+            result = to_string(count);
+            result += "\n";
+        }
+    }
+    
+    
+    
+    else if (command == "/numPatientDischarges")
+    {
+        string disease, country;
+        myDate d1, d2;
+        
+        ss >> disease >> d1 >> d2;
+        
+        string line;
+        getline(ss, line);
+        
+        // If the country arguement exists, read it 
+        if (!line.empty()) 
+        {
+            stringstream sline;
+            sline.str(line);
+            sline >> country;
+        }
+              
+
+  
+        int count;
+        
+        if (country.empty())
+        {
+            myAVLTree<string>::iterator itCountries;
+            myAVLTree<indexPair<myDate, ageGroup > >::iterator it;
+            
+            for (itCountries = countries.begin(); itCountries.isValid(); ++itCountries)
+            {
+                count = 0;
+                
+                for (it = rec_exit[disease][*itCountries].begin(); it.isValid(); ++it)
+                    if ((d1 < it->first) && (it->first < d2))
+                        count += it->second.getTotal();
+                
+                result = *itCountries;
+                result += " ";
+                result += to_string(count);
+                result += "\n";
+            }
+        }
+        
+        else
+        {
+            count = 0;
+            myAVLTree<indexPair<myDate, ageGroup > >::iterator it;
+            
+            if (countries.exists(country))
+                for (it = rec_exit[disease][country].begin(); it.isValid(); ++it)
+                    if ((d1 < it->first) && (it->first < d2))
+                        count += it->second.getTotal();
+            
+            result = to_string(count);
+            result += "\n";
+        }
+    }
+    
+    
+    
+    // Wrong query
+    else
+        result = "You have an error in your query syntax.\n";
+    
     return result;
 }
 
 
 
 
-void *thread_f(void *argp){
-    
-    //cout << "Thread " << pthread_self() << endl;
-    //pthread_t tid = pthread_self();
-    
+void *thread_f(void *argp)
+{    
     // Maximum query length = 128
     char buff[128];
-    
-    pair<int, char> p;
     
     
     
@@ -337,12 +544,16 @@ void *thread_f(void *argp){
     // Wait to get a file descriptor (-1 means exit)
     //
     
+    pair<int, char> p;
+    
     while ((p = pool->deq()).first != -1)
     {    
         //cout << "Just deq'd " << p << endl;
         
         
+        //
         // If read from queryPort
+        //
         if (p.second == 'q'){
 
             // Read query
@@ -352,36 +563,32 @@ void *thread_f(void *argp){
             // Just to be safe
             buff[127] = '\0'; 
             
+            // Process query
             string result = procQuery(buff);
             
-            
-            
-            //
-            // Print answer
-            //
-            
-            // Lock mutex
+            // Print answer (with print mutex)
             if (pthread_mutex_lock(&print))
                 errExit("pthread_mutex_lock");
-            
+                
             cout << buff << endl << result << endl;;
             
-            // Unlock mutex
             if (pthread_mutex_unlock(&print))
                 errExit("pthread_mutex_unlock");
                
-            
-            
             // Send answer back
-            strcpy(buff, result.c_str());
+            strncpy(buff, result.c_str(), 127);
             buff[127] = '\0';
             if (write_data(p.first, buff, (strlen(buff)+1)*sizeof(char), bufferSize) == -1)
                 errExit("write");
                 
             close(p.first);
-        }
         
+        }   // End if read from queryPort
+        
+        
+        //
         // If read from statsPort
+        //
         else if (p.second == 's')
         {
             
@@ -393,7 +600,11 @@ void *thread_f(void *argp){
             ageGroup group;
             indexPair<myDate, ageGroup> ipair;
             
+            
+            
+            //
             // Read all statistics sent from worker
+            //
             do {
                 
                 ret = receive_data(p.first, bufferSize, d, s, group, country, disease);
@@ -431,12 +642,16 @@ void *thread_f(void *argp){
                     else
                         cerr << "whoServer: something unexpected happened!" << endl;
                         
+                    // Also, insert country in countries set
+                    if (!countries.exists(country))
+                        countries.insert(country);
+                        
                     // Unlock mutex
                     if (pthread_mutex_unlock(&recmtx))
                         errExit("pthread_mutex_unlock");
                 } 
-                
-            } while (1);
+            
+            } while (1);    // Exit reading statistics sent from worker
             
             
             
@@ -459,8 +674,10 @@ void *thread_f(void *argp){
             // Unlock mutex
             if (pthread_mutex_unlock(&mtxworkerSock))
                 errExit("pthread_mutex_unlock");
-        }
-    }
+        
+        }   // End if read from statsPort
+    
+    }   // End handling file descriptor
    
     pthread_exit(NULL);
 } 
