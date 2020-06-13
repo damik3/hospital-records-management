@@ -309,7 +309,7 @@ int main(int argc, char* argv[])
 
 string procQuery(const char *q)
 {
-    string result = "okay\n";
+    string result = "";
     
     string s(q);
     stringstream ss(s);
@@ -350,7 +350,7 @@ string procQuery(const char *q)
                     if ((d1 < it2->first) && (it2->first < d2))
                         count += it2->second.getTotal();
                         
-            result = to_string(count);
+            result += to_string(count);
             result += "\n";
         }
         
@@ -364,7 +364,7 @@ string procQuery(const char *q)
                     if ((d1 < it->first) && (it->first < d2))
                         count += it->second.getTotal();
                         
-            result = to_string(count);
+            result += to_string(count);
             result += "\n";
         }
     
@@ -400,7 +400,7 @@ string procQuery(const char *q)
     
     else if (command == "/searchPatientRecord")
     {
-        
+        result += "Not yet implemented.\n";
     }   // End if (command == "/searchPatientRecord")
     
     
@@ -440,7 +440,7 @@ string procQuery(const char *q)
                     if ((d1 < it->first) && (it->first < d2))
                         count += it->second.getTotal();
                         
-                result = *itCountries;
+                result += *itCountries;
                 result += " ";
                 result += to_string(count);
                 result += "\n";
@@ -457,7 +457,7 @@ string procQuery(const char *q)
                     if ((d1 < it->first) && (it->first < d2))
                         count += it->second.getTotal();
             
-            result = to_string(count);
+            result += to_string(count);
             result += "\n";
         }
     }
@@ -499,7 +499,7 @@ string procQuery(const char *q)
                     if ((d1 < it->first) && (it->first < d2))
                         count += it->second.getTotal();
                 
-                result = *itCountries;
+                result += *itCountries;
                 result += " ";
                 result += to_string(count);
                 result += "\n";
@@ -516,7 +516,7 @@ string procQuery(const char *q)
                     if ((d1 < it->first) && (it->first < d2))
                         count += it->second.getTotal();
             
-            result = to_string(count);
+            result += to_string(count);
             result += "\n";
         }
     }
