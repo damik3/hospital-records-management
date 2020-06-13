@@ -12,8 +12,11 @@
 #include <string>
 
 #include "errExit.h"
+#include "myLowLvlIO.h"
 
 using namespace std;
+
+static int bufferSize = 128;
 
 //
 // Shared thread resources
@@ -142,7 +145,6 @@ void readAndAssign(ifstream &squeryFile,
     pthread_t *tids)
 {
     string s;
-    int err;
     char *query;
     
     qcount = 0;
@@ -235,16 +237,16 @@ void *thread_f(void *argp)
     //printf("Connected successfully!\n");
     
     // Send query to server
-    if (write(sock, query, (strlen(query)+1)*sizeof(char)) == -1)
-        errExit("write");
+    if (write_data(sock, query, (strlen(query)+1)*sizeof(char), bufferSize) == -1)
+        errExit("write_data");
         
     // Read answer from server (max answer length = 128)
     char buff[128];
-    if (read(sock, buff, 128) == -1)
-        errExit("read");
+    if (read_data(sock, buff, 128, bufferSize) == -1)
+        errExit("read_data");
         
     // Just to be safe
-    buff[128] = '\0';   
+    buff[127] = '\0';   
         
         
     
