@@ -90,45 +90,6 @@ int main (int argc, char *argv[])
     
     
     
-    //
-    // Send number of workers to whoServer
-    //
-    
-    // IP dot-number into binary form (network byte order)
-    struct in_addr addr;
-    inet_aton(servIP.c_str(), &addr);
-    
-    // Get host
-    struct hostent* host;  
-    host = gethostbyaddr((const char*)&addr, sizeof(addr), AF_INET);
-    if (host == NULL)
-        errExit("gethostbyaddr");
-    //printf("servIP:%s Resolved to: %s\n", servIP.c_str(),host->h_name);
-    
-    // Get server     
-    struct sockaddr_in server;
-    server.sin_family = AF_INET;
-    memcpy(&server.sin_addr, host->h_addr, host->h_length);
-    server.sin_port = htons(servPort); 
-    
-    // Create socket for conncection with server
-    int sock;
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-        errExit("socket");
-        
-    // Connect to server
-    if (connect(sock, (struct sockaddr*)&server, sizeof(server)) < 0)
-        errExit("connect");
-    //printf("Connected successfully!\n");
-    
-    // Send the numWorkers variable
-    if (write_data(sock, (char *)&numWorkers, sizeof(int), bufferSize) < 0)
-        errExit("write_data");
-        
-    close(sock);
-    
-    
-    
     // Slot i contains pid of i-th worker
     int workerPid[numWorkers];
     

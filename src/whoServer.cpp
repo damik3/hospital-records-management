@@ -19,8 +19,9 @@
 #include "errExit.h"
 #include "sendReceive.h"
 #include "myLowLvlIO.h"
-#include "mySTL/myHashTable.h"
 #include "mySTL/myAVLTree.h"
+#include "mySTL/myHashTable.h"
+#include "mySTL/myList.h"
 #include "myPairs.h"
 
 using namespace std;
@@ -35,15 +36,8 @@ static int bufferSize = 128;
 // Pool for file descriptors
 static atomicque<pair<int, char> > *pool;
 
-// Mutex for printing        
-static pthread_mutex_t print = PTHREAD_MUTEX_INITIALIZER;
-
-// Number of workers
-static int numWorkers;
-
 // Sockets for communication with workers
-static int* workerSock;
-static int iworkerSock = 0;
+static myList<int> workerSock;
 static pthread_mutex_t mtxworkerSock = PTHREAD_MUTEX_INITIALIZER;
 
 // Set for countries
@@ -148,26 +142,6 @@ int main(int argc, char* argv[])
     
     
     //
-    // Read numWorkers from master
-    //
-    
-    int newsock;
-    
-    if ((newsock = accept(statsSock, NULL, NULL)) < 0) 
-        errExit("accept");
-        
-    if (read_data(newsock, (char *)&numWorkers, sizeof(int), sizeof(int)) < 0)
-        errExit("read_data");
-        
-    //cout << "numWorkers = " << numWorkers << endl;
-    
-    workerSock = (int *)malloc(numWorkers*sizeof(int));
-    for (int i=0; i<numWorkers; i++)
-        workerSock[i] = -1;
-    
-    
-    
-    //
     // Create poll struct
     //
     
@@ -211,6 +185,7 @@ int main(int argc, char* argv[])
     //
     // Enter server mode
     //
+    int newsock;
     pair<int, char> p;
     
     while (1)
@@ -279,12 +254,8 @@ int main(int argc, char* argv[])
     for (int i = 0; i < numThreads; i++)
         if (pthread_join(tids[i], NULL))
             errExit("pthread_join");
+     
     
-    
-    
-    // Destroy mutexes
-    if (pthread_mutex_destroy(&print))
-        errExit("pthread_mutex_destroy");
     
     if (pthread_mutex_destroy(&recmtx))
         errExit("pthread_mutex_destroy");
@@ -299,7 +270,6 @@ int main(int argc, char* argv[])
     close(querySock);
     close(statsSock);
     delete pool;
-    free(workerSock);
     free(tids);
     
     return EXIT_SUCCESS;
@@ -411,17 +381,19 @@ string procQuery(const char *q)
         
         
         
+        myList<int>::iterator it;
+        
         // Send it to workers
-        for (int i=0; i<iworkerSock; i++)
-            if (send_pat(workerSock[i], bufferSize, pat) == -1)
+        for (it = workerSock.begin(); it.isValid(); ++it)
+            if (send_pat(*it, bufferSize, pat) == -1)
                 errExit("send_pat");
         
         
         // Wait for their response
-        for (int i=0; i<iworkerSock; i++)
+        for (it = workerSock.begin(); it.isValid(); ++it)
         {
             // Listen for i-th worker's response
-            ret = receive_pat(workerSock[i], bufferSize, pat);
+            ret = receive_pat(*it, bufferSize, pat);
             if (ret == -1)
                 errExit("receive_pat");
             
@@ -710,13 +682,7 @@ void *thread_f(void *argp)
             if (pthread_mutex_lock(&mtxworkerSock))
                 errExit("pthread_mutex_lock");
             
-            workerSock[iworkerSock] = p.first;
-            iworkerSock++;
-            
-            //cout << "\nworkerSock: " << endl;
-            //for (int i=0; i<numWorkers; i++)
-            //    cout << workerSock[i] << endl;
-            //cout << endl;
+            workerSock.insert(p.first);
             
             // Unlock mutex
             if (pthread_mutex_unlock(&mtxworkerSock))
@@ -724,7 +690,7 @@ void *thread_f(void *argp)
         
         }   // End if read from statsPort
     
-    }   // End handling file descriptor
+    }   // End handling file descriptors
    
     pthread_exit(NULL);
 } 
