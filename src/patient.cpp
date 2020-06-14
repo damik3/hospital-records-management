@@ -1,6 +1,6 @@
 #include "patient.h"
 
-patient::patient()
+patient::patient() : age(-1)
     {}
     
 patient::patient(string prmid,
