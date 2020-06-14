@@ -17,6 +17,11 @@ ssize_t read_data(int fd, char *arr, size_t count, size_t bufsiz)
 
 
 	char *buff = (char *)malloc(bufsiz);
+    if (buff == NULL)
+    {
+        return -1;
+    }
+    
 	char *buff_ini = buff;
 	ssize_t bread;				// bytes read
 	size_t msgsiz = 0;			// message size
@@ -33,14 +38,7 @@ ssize_t read_data(int fd, char *arr, size_t count, size_t bufsiz)
 		bread = read(fd, buff, msgsiz);
 		
 		if (bread <= 0)
-		{
-			// If it was the first read and no bytes were read, return
-			if (msgsiz == sizeof(int))
-				return bread;
-			// Else, we gotta read the whole integer
-			else
-				continue;
-		}
+			return bread;
 			
 		msgsiz -= bread;
 		
@@ -66,7 +64,7 @@ ssize_t read_data(int fd, char *arr, size_t count, size_t bufsiz)
 		bread = read(fd, buff, (msgsiz < bufsiz ? msgsiz : bufsiz));
 			
 		if (bread <= 0)
-			continue;
+			return bread;
 				
 		memcpy(arr, buff, bread);
 		
@@ -103,6 +101,10 @@ ssize_t write_data(int fd, char *arr, size_t count, size_t bufsiz)
 		
 
 	char *buff = (char *)malloc(bufsiz);
+    if (buff == NULL)
+    {
+        return (-1);
+    }       
 	char *buff_ini = buff;
 	size_t bwrit;
 	size_t count_ini = count;
@@ -123,14 +125,7 @@ ssize_t write_data(int fd, char *arr, size_t count, size_t bufsiz)
 		bwrit = write(fd, buff, count);
 		
 		if (bwrit <= 0)
-		{
-			// If it was the first write and no bytes were read, return
-			if (count == sizeof(int))
-				return bwrit;
-			// Else, we gotta write the whole integer
-			else
-				continue;
-		}
+			return bwrit;
 		
 		count -= bwrit;
 		
@@ -158,7 +153,7 @@ ssize_t write_data(int fd, char *arr, size_t count, size_t bufsiz)
 		bwrit = write(fd, buff, (count > bufsiz ? bufsiz : count));
 		
 		if (bwrit <= 0)
-			continue;
+			return bwrit;
 		
 		count -= bwrit;
 		
