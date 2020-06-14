@@ -12,6 +12,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <sstream>
 
 #include "ageGroup.h"
 #include "atomicque.h"
@@ -400,7 +401,48 @@ string procQuery(const char *q)
     
     else if (command == "/searchPatientRecord")
     {
-        result += "Not yet implemented.\n";
+        bool found = false;
+        patient pat;
+        patient patfound;
+        ssize_t ret;
+        
+        // Read patient id
+        ss >> pat.id;
+        
+        
+        
+        // Send it to workers
+        for (int i=0; i<iworkerSock; i++)
+            if (send_pat(workerSock[i], bufferSize, pat) == -1)
+                errExit("send_pat");
+        
+        
+        // Wait for their response
+        for (int i=0; i<iworkerSock; i++)
+        {
+            // Listen for i-th worker's response
+            ret = receive_pat(workerSock[i], bufferSize, pat);
+            if (ret == -1)
+                errExit("receive_pat");
+            
+            // If patient was found
+            if (ret > sizeof(char))
+            {
+                found = true;
+                patfound = pat;
+            }
+        }
+        
+        
+        
+        // Write into result
+        if (found)
+        {
+            result += patfound.str();
+            result += "\n";
+        }
+        else
+            result += "Patient not found!\n";
     }   // End if (command == "/searchPatientRecord")
     
     
@@ -563,17 +605,22 @@ void *thread_f(void *argp)
             // Just to be safe
             buff[127] = '\0'; 
             
+            
+            
+            // Lock mutex
+            if (pthread_mutex_lock(&recmtx))
+                errExit("pthread_mutex_lock");
+            
             // Process query
             string result = procQuery(buff);
             
-            // Print answer (with print mutex)
-            if (pthread_mutex_lock(&print))
-                errExit("pthread_mutex_lock");
-                
             cout << buff << endl << result << endl;;
             
-            if (pthread_mutex_unlock(&print))
+            // Unock mutex
+            if (pthread_mutex_unlock(&recmtx))
                 errExit("pthread_mutex_unlock");
+               
+               
                
             // Send answer back
             strncpy(buff, result.c_str(), 127);
