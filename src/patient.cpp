@@ -34,6 +34,43 @@ patient::patient(string prmid,
             exitDate(prmexitDate)
             {}
             
+string patient::str()
+{
+    string s("");
+    s += id;
+    s += " ";
+    s += fname;
+    s += " ";
+    s += lname;
+    s += " ";
+    s += disease;
+    s += " ";
+    s += to_string(age);
+    s += " ";
+    s += to_string(entryDate.day);
+    s += "-";
+    s += to_string(entryDate.month);
+    s += "-";
+    s += to_string(entryDate.year);
+    if (exitDate.isNull())
+    {
+        s += " ";
+        s += "-";
+    }
+    
+    else
+    {
+        s += " ";
+        s += to_string(exitDate.day);
+        s += "-";
+        s += to_string(exitDate.month);
+        s += "-";
+        s += to_string(exitDate.year);
+    }
+    
+    return s;
+}
+            
 bool operator == (const patient& p1, const patient&p2)
 {
     return p1.id == p2.id;

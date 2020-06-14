@@ -36,6 +36,8 @@ struct patient
         myDate prmentryDate,
         myDate prmexitDate);
         
+    string str();
+        
     friend bool operator == (const patient& p1, const patient&p2);
     friend bool operator != (const patient& p1, const patient&p2);
     friend bool operator < (const patient& p1, const patient&p2);
