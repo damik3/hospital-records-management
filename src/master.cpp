@@ -49,7 +49,8 @@ void readAndAssign(unsigned int &numWorkers,
     unsigned int &bufferSize,
     char *inputDir, 
     string servIP,
-    int &servPort);
+    int &servPort,
+    int workerPid[]);
 void sigHandler(int signo);
 
 void printLog(myList<string> &countries, 
@@ -128,9 +129,36 @@ int main (int argc, char *argv[])
     
     
     
+    // Slot i contains pid of i-th worker
+    int workerPid[numWorkers];
     
     // Read and assign inputDir to workers
-    readAndAssign(numWorkers, bufferSize, inputDir, servIP, servPort);
+    readAndAssign(numWorkers, bufferSize, inputDir, servIP, servPort, workerPid);
+    
+    
+    
+    // Set signal handler
+    static struct sigaction act;
+    sigfillset(&(act.sa_mask));
+    act.sa_handler = sigHandler;
+    sigaction(SIGINT, &act, NULL);
+    sigaction(SIGQUIT, &act, NULL);
+    
+    
+    
+    // Wait for SIGINT of SIGSTP to terminate children and self
+    while (1)
+    {
+        pause();
+        if (dflgsigint)
+        {
+            //cout << "gonna kill my children!" << endl;
+            for (int i=0; i<numWorkers; i++)
+                kill(workerPid[i], SIGINT);
+                
+            break;
+        }
+    }
     
     
     
@@ -138,7 +166,7 @@ int main (int argc, char *argv[])
     int status;
     while (wait(&status) > 0)
         ;;
-    cout << "master: All children finished" << endl;
+    //cout << "master: All children finished" << endl;
     
     
     
@@ -163,9 +191,6 @@ int main (int argc, char *argv[])
     
     // Slot i contains a list of countries assigned to worker i 
     myList<string> workerCountries[numWorkers];
-    
-    // Slot i contains pid of i-th worker
-    int workerPid[numWorkers];
     
     // Slot i contains fd for reading data from i-th worker 
     int workerPipe[numWorkers];
@@ -198,13 +223,7 @@ int main (int argc, char *argv[])
     }
     
 
-        
-    // Set signal handler
-    static struct sigaction act;
-    sigfillset(&(act.sa_mask));
-    act.sa_handler = sigHandler;
-    sigaction(SIGINT, &act, NULL);
-    sigaction(SIGQUIT, &act, NULL);
+
     sigaction(SIGUSR1, &act, NULL);
   
     
@@ -662,7 +681,8 @@ void readAndAssign(unsigned int &numWorkers,
     unsigned int &bufferSize,
     char *inputDir, 
     string servIP,
-    int &servPort)
+    int &servPort,
+    int workerPid[])
 {
     
     // Open inputDir 
@@ -710,12 +730,12 @@ void readAndAssign(unsigned int &numWorkers,
     for (int i=0; i<numWorkers; i++)
     {
         
-        int workerPid = fork();
+        workerPid[i] = fork();
         
         
         
         // Case: fork failed
-        if (workerPid < 0)
+        if (workerPid[i] < 0)
         {
             perror("fork");
             exit(1);
@@ -724,7 +744,7 @@ void readAndAssign(unsigned int &numWorkers,
           
           
         // Case: forked child
-        else if (workerPid == 0)
+        else if (workerPid[i] == 0)
         { 
             // Build argv of i-th worker 
             
