@@ -136,8 +136,35 @@ int main (int argc, char *argv[])
     
     
     
+    string id;
+    patient pat;
+            
+    while (receive_id(sock, bufferSize, id))
+    {
+        //cout << "worker received id = " << id << endl;
+        
+        pat.id = id;
+        
+        patient *ppat = patients.exists(pat);
+        
+        if (ppat)
+        {
+            //cout << "Patient found:" << *ppat << endl;
+            if (send_pat(sock, bufferSize, *ppat) == -1)
+                errExit("send_pat");
+        }
+        else
+        {
+            //cout << "Not found!" << endl;
+            if (send_null(sock, bufferSize) == -1)
+                errExit("send_null");
+        }
+    }
+    
+    
+    
     close(sock);
-     
+
     return 0; 
     
 /************************************************************************************************
