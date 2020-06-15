@@ -372,12 +372,13 @@ string procQuery(const char *q)
     else if (command == "/searchPatientRecord")
     {
         bool found = false;
+        string id;
         patient pat;
         patient patfound;
         ssize_t ret;
         
         // Read patient id
-        ss >> pat.id;
+        ss >> id;
         
         
         
@@ -385,8 +386,8 @@ string procQuery(const char *q)
         
         // Send it to workers
         for (it = workerSock.begin(); it.isValid(); ++it)
-            if (send_pat(*it, bufferSize, pat) == -1)
-                errExit("send_pat");
+            if (send_id(*it, bufferSize, id) == -1)
+                errExit("send_id");
         
         
         // Wait for their response
