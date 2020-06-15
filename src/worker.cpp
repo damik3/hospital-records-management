@@ -24,17 +24,10 @@
 #include "patient.h"
 #include "sendReceive.h"
 
-#define PIPEDIR     ".pipes"
 #define ENTER       "ENTER"
 #define EXIT        "EXIT"
 
-#define MAX_BACKOFF 3600    // 1 hour
-#define INITIAL_BACKOFF 1   // 1 sec
-
-static int backoff = INITIAL_BACKOFF;
 static int flgsigint = 0;
-static int flgsigusr1 = 0;
-static int flgsigusr2 = 0;
 
 using namespace std; 
 
@@ -86,6 +79,14 @@ int main (int argc, char *argv[])
     //cout << "servIP = " << servIP << endl;
     //cout << "servPort = " << servPort << endl;
     //cout << "countries = " << countries << endl;
+    
+    
+    
+    // Set signal handler
+    static struct sigaction act;
+    act.sa_handler = sigHandler;
+    sigaction(SIGINT, &act, NULL);
+    
     
     
     //
@@ -140,12 +141,15 @@ int main (int argc, char *argv[])
     patient pat;
             
     while (receive_id(sock, bufferSize, id))
-    {
+    {        
         //cout << "worker received id = " << id << endl;
+        
+        if (flgsigint)
+            break;
         
         pat.id = id;
         
-        patient *ppat = patients.exists(pat);
+        patient *ppat = patients.exists(pat); 
         
         if (ppat)
         {
@@ -164,120 +168,10 @@ int main (int argc, char *argv[])
     
     
     close(sock);
+    
+    //cout << "Worker exiting!" << endl;
 
     return 0; 
-    
-/************************************************************************************************
- ************************************************************************************************
- ************************************************************************************************/
-
-    
-    pid_t parentpid;
-
-
-    
-    // Set signal handler
-    
-    static struct sigaction act;
-    act.sa_handler = sigHandler;
-    sigaction(SIGINT, &act, NULL);
-    sigaction(SIGQUIT, &act, NULL);
-    sigaction(SIGUSR1, &act, NULL);
-    sigaction(SIGUSR2, &act, NULL);
-
-    
-    
-    // Open pipe to diseaseAggregator
-    
-    s = PIPEDIR;
-    s += "/pipe";
-    s += to_string(getpid());
-    
-    int fdpipe;
-    
-    // Wait for diseaseAggregator to create pipes 
-    
-    while ((fdpipe = open(s.c_str(), O_RDWR)) == -1)
-        ;;
-        
-    s = PIPEDIR;
-    s += "/2pipe";
-    s += to_string(getpid());
-    
-    int fromfdpipe;
-    
-    while ((fromfdpipe = open(s.c_str(), O_RDWR)) == -1)
-        ;;
-            
-
-    
-    // Number of succesfull queries
-    unsigned int qsucc = 0;
-    
-    // Number of failed queries
-    unsigned int qfail = 0;
-    
-
-
-    while (1)
-    {
-        //printf("worker: gonna sleep for %d seconds\n", backoff);
-        sleep(backoff);
-        backoff = backoff << 2;
-        
-        if (backoff > MAX_BACKOFF)
-            backoff = MAX_BACKOFF;
-        
-    
-            
-        // Check for signal flags
-        
-        if (flgsigint) 
-        {
-            //printf("worker: gonna do some SIGINT stuff\n");
-            flgsigint = 0;
-            printLog(countries, qsucc, qfail);
-        }
-        
-        
-        
-        if (flgsigusr1)
-        {
-            //printf("main: gonna do some SIGUSR1 stuff\n");
-            flgsigusr1 = 0;
-            updateData(inputDir, bufferSize, countries, countryDates, patients, fdpipe);
-            kill(parentpid, SIGUSR1);
-        }
-        
-        
-        
-        if (flgsigusr2)
-        {
-            //printf("main: gonna do some SIGUSR2 stuff\n");
-            flgsigusr2 = 0;
-            
-            string id;
-            
-            receive_id(fromfdpipe, bufferSize, id);
-                        
-            patient pat;
-            pat.id = id;
-            
-            patient *ppat = patients.exists(pat);
-            
-            if (ppat)
-                send_pat(fdpipe, bufferSize, *ppat);
-            else
-                send_null(fdpipe, bufferSize);
-        }
-    }
-    
-    
-    
-    close(fdpipe);
-    close(fromfdpipe);
-    
-    return 0;
 }
 
 
@@ -513,42 +407,6 @@ void updateData(string inputDir,
 
 void sigHandler(int signo)
 {
-    if ( (signo == SIGINT) || (signo == SIGQUIT) )
+    if (signo == SIGINT)
         flgsigint = 1;
-    else if (signo == SIGUSR1)
-        flgsigusr1 = 1;
-    else if (signo == SIGUSR2)
-        flgsigusr2 = 1;
-        
-    backoff = INITIAL_BACKOFF;
 }
-
-
-
-
-void printLog(myList<string> &countries, unsigned int qsucc, unsigned int qfail)
-{
-    string s;
-    s = "./logs/";
-    s += "log_file.";
-    s += to_string(getpid());
-    //cout << "Gonna write to " << s << endl;
-    
-    ofstream logFile(s);
-    
-    if (!logFile.is_open())
-    {
-        perror("open");
-    }
-    
-    else
-    {
-        logFile << countries;
-        logFile << "TOTAL " << qsucc + qfail << endl;
-        logFile << "SUCCESS " << qsucc << endl;
-        logFile << "FAIL " << qfail << endl;
-        
-        logFile.close();
-    }
-}
-
