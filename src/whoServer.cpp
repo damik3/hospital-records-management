@@ -269,6 +269,12 @@ int main(int argc, char* argv[])
     
     close(querySock);
     close(statsSock);
+    
+    myList<int>::iterator it;
+    
+    for (it = workerSock.begin(); it.isValid(); ++it)
+        close(*it);
+    
     delete pool;
     free(tids);
     
