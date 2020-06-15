@@ -137,7 +137,7 @@ int main(int argc, char* argv[])
     if (listen(statsSock, 5) < 0) 
         errExit("listen");
         
-    printf("Listening for connections on ports %d and %d\n", queryPortNum, statsPortNum);
+    printf("Listening for connections on ports %d and %d\n\n", queryPortNum, statsPortNum);
     
     
     

@@ -99,8 +99,11 @@ int main(int argc, char *argv[])
     squeryFile.open(queryFile);
     if (!squeryFile.is_open())
         errExit("open");
-        
-        
+     
+
+    
+    // For prettier print
+    cout << endl;
     
     // Number of queries in queryFile
     int qcount;
