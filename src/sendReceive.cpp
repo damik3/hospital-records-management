@@ -221,6 +221,9 @@ ssize_t receive_id(int fd, unsigned int bufferSize, string& id)
 
     ssize_t ret = read_data(fd, s, count, bufferSize);
     
+    if (ret <= 0)
+        return ret;
+    
     id = s;
     
     return ret;
