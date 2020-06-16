@@ -28,3 +28,4 @@
 
 ### Notes:
   - For date files in the `dd-mm-yyyy` or the `(d)d-(m)m-yyyy` format, set the appropriate macro at the begining of `include/myDate.h` file. By default, the `(d)d-(m)m-yyyy` is used, because the script `create_infiles.sh` creates date files in that format. 
+  - The serverIP parameter is in dotted decimal notation.
