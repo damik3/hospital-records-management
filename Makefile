@@ -42,6 +42,4 @@ $(ODIR)/%.o: $(SRCDIR)/%.cpp $(DEPS)
 
 clean:
 	rm -f $(ODIR)/*.o $(BINDIR)/*
-	
-clean_logs:
-	rm ./logs/*
+
