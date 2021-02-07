@@ -8,7 +8,9 @@ Client server application handling patiend record data. Consists of the followin
  - **master** 
  - **worker**
 
-The `master` process first forks a number workers and distributes to them the task of reading all the input files. The patient data are then stored by the `master` process in appopriate data structures. whoClient sends queries to whoServer, whoServer forwards these queries to the worker processes if needed, then waits for their response, and finally sends the response back to whoClient. whoServer is a multi threaded process which assigns each new incoming connection to a thread. whoClient is also a multi threaded process which assigns each query to a thread. 
+The `master` process first forks a number workers and distributes to them the task of reading all the input files. The patient data are then stored by the `master` process in appopriate data structures. `whoClient` sends queries to `whoServer`, then `whoServer` forwards these queries to the worker processes if needed, waits for their response, and finally sends the response back to `whoClient`. 
+
+`whoServer` is a multi threaded process which assigns each new incoming connection to a thread. `whoClient` is also a multi threaded process which assigns each query to a thread. 
 
 The graph below depicts the interactions between the processes.
 
