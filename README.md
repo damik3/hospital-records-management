@@ -33,15 +33,29 @@ The graph below depicts the interactions between the processes.
 ### Compilation
   From the root project directory, type `make`.
   
-### Run
-  - **master:** From the root project directory, type `/bin/master`.
-  - **whoServer:** From the root project directory, type `/bin/whoServer`.
-  - **whoClient:** From the root project directory, type `/bin/whoClient`.
-  - **create_infiles.sh:** From the root project directory, type `scripts/create_infiles.sh`.
+### Sample Run
+Run the following commands from the root project directory. For additional info on the parameters of each process, execute it without any arguements.
+
+- First create the input folder.
+``` 
+./scripts/create_infiles.sh ./scripts_input/diseases.txt ./scripts_input/countries.txt input_dir 5 8
+```
+
+- Then get whoServer up and running with
+```
+./bin/whoServer -q 8000 -s 9000 -w 5 -b 20
+```
+
+- Then in a new terminal
+```
+./bin/master -w 4 -b 64 -s 127.0.0.1 -p 9000 -i input_dir/
+```
+
+- And finally in another terminal
+```
+./bin/whoClient -q queries.txt -w 8 -sp 8000 -sip 127.0.0.1
+```
 
 ### Notes
   - For date files in the `dd-mm-yyyy` or the `(d)d-(m)m-yyyy` format, set the appropriate macro at the begining of `include/myDate.h` file. By default, the `(d)d-(m)m-yyyy` is used, because the script `create_infiles.sh` creates date files in that format. 
   - The serverIP parameter is in dotted decimal notation.
-
-### Author
-  Michalis Vargiamis
