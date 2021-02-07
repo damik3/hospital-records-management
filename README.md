@@ -2,7 +2,7 @@
 
 ### General description 
 
-Client server application handling patiend record data. Consists of the following processes
+Client server application handling hospital patient data. Consists of the following processes
  - **whoServer**  
  - **whoClient** 
  - **master** 
