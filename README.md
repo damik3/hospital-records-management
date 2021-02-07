@@ -8,9 +8,7 @@ Client server application handling patiend record data. Consists of the followin
  - **master** 
  - **worker**
 
-Patiend data are stored where master and worker proccesses are being run. whoClient sends queries to whoServer, whoServer forwards these queries to the worker processes if needed, then waits for their response, and finally sends the response back to whoClient. whoServer is a multi threaded process which assigns each new incoming connection to a thread. whoClient is also a multi threaded process which assigns each query to a thread. For a more detailed description, see `./hw3-spring-2020.pdf`.
-
-### Graphical representation
+Patiend data are stored where master and worker proccesses are being run. whoClient sends queries to whoServer, whoServer forwards these queries to the worker processes if needed, then waits for their response, and finally sends the response back to whoClient. whoServer is a multi threaded process which assigns each new incoming connection to a thread. whoClient is also a multi threaded process which assigns each query to a thread. 
 
 The graph below depicts the interactions between the processes.
 
@@ -29,6 +27,12 @@ The graph below depicts the interactions between the processes.
   **whoClient** runs next assigning each thread a line from `queries.txt`. Note that the parameter `numThreads` must be less or equal to the number of lines in `queries.txt`. A thread will connect to whoServer, send the query assigned to whoServer, wait for the answer and then print them both.
   
   **whoServer** exits normally on SIGINT or SIGTSTP, meaning freeing apporpiately all resources.
+
+### Data storage
+
+The patient data are stored by the `master` process. The graph below illustrates the basic design idea  which was chosen based on the nature of the queries we had to process. Note that the use of the C++ STL was not allowed and we had to create all structs we had to use on our own (see `/include/mySTL/`). 
+
+![data storage image](./data_storage.jpg)
 
 ### Compilation
   From the root project directory, type `make`.
