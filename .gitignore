@@ -11,6 +11,7 @@
 !create_infiles.sh
 !diseases.txt
 !countries.txt
+!queries.txt
 !hw2-spring-2020.pdf
 !README.md
 !.gitignore
