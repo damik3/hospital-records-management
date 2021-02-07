@@ -1,0 +1,8 @@
+/diseaseFrequency SARS-1 1-1-2017 1-1-2020
+/diseaseFrequency SARS-1 1-1-2015 1-1-2020 Greece
+/topk-AgeRanges 2 China COVID-2019 1-1-2000 1-1-2018
+/searchPatientRecord 3
+/numPatientAdmissions FLU-2018 3-3-2015 4-4-2019
+/numPatientAdmissions FLU-2018 3-3-2015 4-4-2019 USA
+/numPatientDischarges SARS-1 5-5-2016 6-6-2020
+/numPatientDischarges SARS-1 5-5-2016 6-6-2020 Spain
