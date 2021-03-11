@@ -2,7 +2,10 @@
 
 ### General description 
 
-Client server application handling hospital patient data. Consists of the following processes
+Client server application handling hospital patient data. Part of an undergrad course homework. 
+
+Consists of the following processes:
+
  - **whoServer**  
  - **whoClient** 
  - **master** 
